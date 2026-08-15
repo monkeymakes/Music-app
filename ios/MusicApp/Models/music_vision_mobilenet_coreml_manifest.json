@@ -1,0 +1,30 @@
+{
+  "device_class": "ios_phone",
+  "architecture": "mobilenet",
+  "runtime": "coreml",
+  "model_resource": "music_vision_mobilenet.mlpackage",
+  "labels_file": "music_vision_mobilenet_coreml_labels.txt",
+  "label_count": 10,
+  "labels": [
+    "instrument",
+    "vinyl",
+    "guitar",
+    "piano",
+    "drums",
+    "microphone",
+    "headphones",
+    "album_cover",
+    "concert",
+    "studio"
+  ],
+  "compute_units": "all (CPU + GPU + Neural Engine)",
+  "accessibility": "VoiceOver announcements via MusicVisionAccessibility",
+  "create_ml_training_data": "ml/create_ml/TrainingData",
+  "next_steps": [
+    "Train an Image Classifier in Create ML with folders under ml/create_ml/TrainingData",
+    "Export as ios/MusicApp/Models/music_vision_mobilenet.mlpackage",
+    "Or convert a TF/Keras MobileNet: python3 ml/convert_to_coreml.py --input path/to/model",
+    "Add the .mlpackage to the MusicApp Xcode target",
+    "MusicVisionClassifier(runtime: .coreML).prepare()"
+  ]
+}
