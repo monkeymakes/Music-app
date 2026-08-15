@@ -40,26 +40,46 @@ public struct MusicVisionLabel: Equatable, Sendable {
 /// Bridges a custom AutoML / TensorFlow Lite image model into ML Kit's
 /// `ImageLabeler` so Music-app can run on-device vision on iOS.
 ///
-/// Drop `music_vision.tflite` (with metadata) into the app target and ensure
-/// it is listed under Copy Bundle Resources. Optionally place a downloaded
-/// remote copy at the documents path configured in `Configuration`.
+/// **Phones use MobileNet** (`music_vision_mobilenet.tflite`) for fast,
+/// accessible inference. Raspberry Pi deployments use EfficientNet separately
+/// (see `edge/raspberry_pi/`).
+///
+/// Drop the `.tflite` into the app target with **Copy Bundle Resources**.
+/// Optionally place a downloaded remote copy at the documents path in
+/// `Configuration`.
 public final class MLKitModelBridge: @unchecked Sendable {
   public struct Configuration: Sendable {
-    /// Bundled resource name without extension (default: `music_vision`).
+    /// Bundled resource name without extension (default: MobileNet for iOS).
     public var bundledModelName: String
     /// Optional on-disk filename for a model downloaded from Cloud Storage.
     public var downloadedModelFileName: String
+    public var architecture: VisionModelArchitecture
     public var confidenceThreshold: Float
     public var maxResultCount: Int
 
     public init(
-      bundledModelName: String = "music_vision",
-      downloadedModelFileName: String = "music_vision_remote.tflite",
+      deploymentTarget: VisionDeploymentTarget = .iOSPhone,
+      confidenceThreshold: Float = 0.5,
+      maxResultCount: Int = 5
+    ) {
+      let architecture = deploymentTarget.architecture
+      self.architecture = architecture
+      self.bundledModelName = architecture.bundledModelName
+      self.downloadedModelFileName = architecture.downloadedModelFileName
+      self.confidenceThreshold = confidenceThreshold
+      self.maxResultCount = maxResultCount
+    }
+
+    public init(
+      bundledModelName: String,
+      downloadedModelFileName: String,
+      architecture: VisionModelArchitecture = .mobileNet,
       confidenceThreshold: Float = 0.5,
       maxResultCount: Int = 5
     ) {
       self.bundledModelName = bundledModelName
       self.downloadedModelFileName = downloadedModelFileName
+      self.architecture = architecture
       self.confidenceThreshold = confidenceThreshold
       self.maxResultCount = maxResultCount
     }
@@ -69,7 +89,9 @@ public final class MLKitModelBridge: @unchecked Sendable {
   private let lock = NSLock()
   private var imageLabeler: ImageLabeler?
 
-  public init(configuration: Configuration = Configuration()) {
+  public var architecture: VisionModelArchitecture { configuration.architecture }
+
+  public init(configuration: Configuration = Configuration(deploymentTarget: .iOSPhone)) {
     self.configuration = configuration
   }
 

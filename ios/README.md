@@ -1,78 +1,58 @@
 # iOS ML Kit bridge (Music-app)
 
-Bridges a custom AutoML / TensorFlow Lite vision model into **Google ML Kit** on iOS
-via `LocalModel` → `CustomImageLabelerOptions` → `ImageLabeler`, with **Firebase
-Analytics** for model performance and **Cloud Firestore** for customer feedback.
+**iPhones run MobileNet** through Google ML Kit for fast, accessible on-device
+vision. **Raspberry Pis run EfficientNet** (see `edge/raspberry_pi/`).
+
+Firebase Analytics tracks model performance; Firestore stores customer feedback.
+
+## Why MobileNet on phones
+
+Users who rely on VoiceOver, larger text, or other assistive features need
+predictions that return quickly and are announced clearly. MobileNet keeps
+latency and battery cost low compared with larger nets like EfficientNet.
 
 ## Layout
 
 | Path | Role |
 | --- | --- |
-| `MusicApp/MLKit/MLKitModelBridge.swift` | Core bridge (bundle / downloaded `.tflite` → ML Kit) |
-| `MusicApp/MLKit/MusicVisionClassifier.swift` | App API + Analytics hooks + feedback submit |
-| `MusicApp/Firebase/ModelPerformanceAnalytics.swift` | Firebase Analytics events |
-| `MusicApp/Firebase/ModelFeedbackService.swift` | Firestore `model_feedback` writes |
-| `MusicApp/Firebase/FirebaseBootstrap.swift` | `FirebaseApp.configure()` |
-| `MusicApp/Models/` | Drop `music_vision.tflite` here |
-| `Podfile` | ML Kit + Firebase Analytics / Firestore / Storage |
-| `GoogleService-Info.plist.example` | Copy → `GoogleService-Info.plist` from Firebase console |
-| `firestore.rules.example` | Starter security rules for feedback |
+| `MusicApp/MLKit/VisionDeploymentTarget.swift` | MobileNet (iOS) vs EfficientNet (Pi) |
+| `MusicApp/MLKit/MLKitModelBridge.swift` | ML Kit bridge (defaults to MobileNet) |
+| `MusicApp/MLKit/MusicVisionAccessibility.swift` | VoiceOver / friendly labels |
+| `MusicApp/MLKit/MusicVisionClassifier.swift` | App API + Analytics + feedback |
+| `MusicApp/Firebase/*` | Analytics + Firestore feedback |
+| `MusicApp/Models/` | Drop `music_vision_mobilenet.tflite` here |
+| `Podfile` | ML Kit + Firebase |
+| `../edge/raspberry_pi/` | EfficientNet TFLite runner for Pi |
 
 ## Xcode setup
 
-1. Create an iOS App target named **MusicApp** (iOS 15+, SwiftUI or UIKit).
-2. Add the Swift files under `MusicApp/MLKit/` and `MusicApp/Firebase/` to the target.
-3. Create a Firebase iOS app, download `GoogleService-Info.plist`, add it to the target.
-4. Enable **Analytics** and **Cloud Firestore** in the Firebase console.
-5. From this `ios/` directory:
-
-```bash
-pod install
-open MusicApp.xcworkspace
-```
-
-6. Export / copy `music_vision.tflite` into `MusicApp/Models/` (Copy Bundle Resources).
-7. Optional: paste `firestore.rules.example` into Firestore Rules (then tighten).
-
-## Firebase Analytics events
-
-| Event | When | Useful params |
-| --- | --- | --- |
-| `music_vision_prepare` | Model load | `model_source`, `success` |
-| `music_vision_inference` | After classify | `latency_ms`, `top_label`, `top_confidence`, `label_count`, `success` |
-| `music_vision_feedback` | User rates prediction | `rating`, `top_label`, `has_comment` |
-
-Register custom dimensions/metrics under **Analytics → Custom definitions**.
-
-## Customer feedback (Firestore)
-
-```swift
-try await classifier.submitFeedback(rating: .helpful, comment: "Correct album genre")
-// or .notHelpful
-```
-
-Documents land in collection `model_feedback` with inference labels, confidence,
-latency, rating, and comment for model-quality review.
+1. Create an iOS App target named **MusicApp** (iOS 15+).
+2. Add Swift files under `MusicApp/MLKit/` and `MusicApp/Firebase/`.
+3. Add Firebase `GoogleService-Info.plist` (from the example stub).
+4. Enable Analytics + Firestore; `pod install`; open the workspace.
+5. Bundle `music_vision_mobilenet.tflite` (Copy Bundle Resources).
+6. `python3 ml/prepare_mlkit_model.py --target ios_phone`
 
 ## Usage
 
 ```swift
-_ = FirebaseBootstrap.configureIfNeeded()
-
-let classifier = MusicVisionClassifier()
+let classifier = MusicVisionClassifier(deploymentTarget: .iOSPhone) // MobileNet
 classifier.prepare()
 
 Task {
   let labels = try await classifier.classify(image: albumArt)
-  try await classifier.submitFeedback(rating: .helpful, comment: "Looks right")
+  // VoiceOver announces results automatically when enabled
+  try await classifier.submitFeedback(rating: .helpful, comment: "Correct")
 }
 ```
 
-For camera frames, use `classifyFrame(sampleBuffer:cameraPosition:)` on a
-background queue. Analytics for frames are sampled (~1/30) to limit event volume.
+## Firebase events
 
-## Model sources
+Params now include `architecture=mobilenet` and `device_class=ios_phone`
+(Pi jobs should tag `efficientnet` / `raspberry_pi`).
 
-- **Bundled:** `music_vision.tflite` in the app bundle (offline, immediate).
-- **Hosted:** download to Documents as `music_vision_remote.tflite`; the bridge
-  prefers that path when present (Firebase Storage helper in `RemoteModelDownloader`).
+| Event | When |
+| --- | --- |
+| `music_vision_prepare` | Model load |
+| `music_vision_inference` | After classify |
+| `music_vision_feedback` | User rates prediction |

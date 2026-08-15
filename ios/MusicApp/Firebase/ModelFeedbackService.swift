@@ -86,11 +86,8 @@ public final class ModelFeedbackService: Sendable {
     let db = Firestore.firestore()
     try await db.collection(collectionName).document(feedback.inferenceId).setData(payload)
 
-    ModelPerformanceAnalytics.logFeedbackSubmitted(
-      rating: feedback.rating,
-      topLabel: feedback.topLabel,
-      hasComment: !feedback.comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    )
+    // Analytics mirror is owned by MusicVisionClassifier.submitFeedback so
+    // architecture / device_class stay consistent with the active model.
   }
 }
 

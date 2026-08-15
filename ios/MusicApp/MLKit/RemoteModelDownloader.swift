@@ -6,7 +6,7 @@ import FirebaseStorage
 public final class RemoteModelDownloader: Sendable {
   public let destinationFileName: String
 
-  public init(destinationFileName: String = "music_vision_remote.tflite") {
+  public init(destinationFileName: String = VisionModelArchitecture.mobileNet.downloadedModelFileName) {
     self.destinationFileName = destinationFileName
   }
 

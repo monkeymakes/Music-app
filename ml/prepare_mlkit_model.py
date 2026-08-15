@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Prepare label / packaging metadata for bridging a vision model to iOS ML Kit.
+"""Prepare Music Vision label sidecars for MobileNet (iOS) and EfficientNet (Pi).
 
-This does not train a network. It validates a labels file and writes the
-sidecar notes ML Kit custom image labeling expects alongside a .tflite model
-exported from AutoML Vision Edge, TFLite Model Maker, or TensorFlow Hub.
+Does not train networks. Writes labels + a deployment checklist so you can drop
+in architecture-specific .tflite files:
+
+  iOS phone     → MobileNet     → ios/MusicApp/Models/music_vision_mobilenet.tflite
+  Raspberry Pi  → EfficientNet  → edge/raspberry_pi/models/music_vision_efficientnet.tflite
 """
 
 from __future__ import annotations
@@ -11,6 +13,25 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+
+TARGETS = {
+    "ios_phone": {
+        "architecture": "mobilenet",
+        "model_name": "music_vision_mobilenet",
+        "out": Path("ios/MusicApp/Models"),
+        "device_class": "ios_phone",
+        "runtime": "Google ML Kit ImageLabelingCustom on iOS",
+        "accessibility": "VoiceOver announcements via MusicVisionAccessibility",
+    },
+    "raspberry_pi": {
+        "architecture": "efficientnet",
+        "model_name": "music_vision_efficientnet",
+        "out": Path("edge/raspberry_pi/models"),
+        "device_class": "raspberry_pi",
+        "runtime": "tflite-runtime EfficientNet classifier on Raspberry Pi",
+        "accessibility": None,
+    },
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -22,15 +43,10 @@ def parse_args() -> argparse.Namespace:
         help="Newline-separated class labels for the classifier",
     )
     parser.add_argument(
-        "--out",
-        type=Path,
-        default=Path("ios/MusicApp/Models"),
-        help="Output directory for iOS bundle resources",
-    )
-    parser.add_argument(
-        "--model-name",
-        default="music_vision",
-        help="Bundled resource name without extension",
+        "--target",
+        choices=["ios_phone", "raspberry_pi", "all"],
+        default="all",
+        help="Which deployment target to prepare",
     )
     return parser.parse_args()
 
@@ -45,39 +61,50 @@ def load_labels(path: Path) -> list[str]:
     return labels
 
 
-def main() -> None:
-    args = parse_args()
-    labels = load_labels(args.labels)
-    out_dir = args.out
+def prepare_target(target_key: str, labels: list[str]) -> None:
+    meta = TARGETS[target_key]
+    out_dir = meta["out"]
     out_dir.mkdir(parents=True, exist_ok=True)
+    model_name = meta["model_name"]
 
-    labels_out = out_dir / f"{args.model_name}_labels.txt"
+    labels_out = out_dir / f"{model_name}_labels.txt"
     labels_out.write_text("\n".join(labels) + "\n", encoding="utf-8")
 
     checklist = {
-        "model_resource": f"{args.model_name}.tflite",
+        "device_class": meta["device_class"],
+        "architecture": meta["architecture"],
+        "model_resource": f"{model_name}.tflite",
         "labels_file": labels_out.name,
         "label_count": len(labels),
         "labels": labels,
-        "ml_kit_ios": {
-            "pod": "GoogleMLKit/ImageLabelingCustom",
-            "bridge": "ios/MusicApp/MLKit/MLKitModelBridge.swift",
-            "local_model_api": "LocalModel(path:) → CustomImageLabelerOptions → ImageLabeler",
-        },
+        "runtime": meta["runtime"],
+        "accessibility": meta["accessibility"],
         "next_steps": [
-            f"Export a metadata-enabled .tflite classifier to {out_dir / (args.model_name + '.tflite')}",
-            "Add the .tflite file to the MusicApp Xcode target (Copy Bundle Resources)",
-            "Call MusicVisionClassifier.prepare() then classify(image:)",
+            f"Export a metadata-enabled {meta['architecture']} .tflite to "
+            f"{out_dir / (model_name + '.tflite')}",
+            "Keep class order identical across MobileNet and EfficientNet exports",
+            (
+                "Add the .tflite to the MusicApp Xcode target (Copy Bundle Resources)"
+                if target_key == "ios_phone"
+                else "Run edge/raspberry_pi/efficientnet_infer.py on the Pi"
+            ),
         ],
     }
 
-    manifest = out_dir / f"{args.model_name}_bridge_manifest.json"
+    manifest = out_dir / f"{model_name}_bridge_manifest.json"
     manifest.write_text(json.dumps(checklist, indent=2) + "\n", encoding="utf-8")
+    print(f"[{target_key}] Wrote {labels_out}")
+    print(f"[{target_key}] Wrote {manifest}")
 
-    print(f"Wrote {labels_out}")
-    print(f"Wrote {manifest}")
+
+def main() -> None:
+    args = parse_args()
+    labels = load_labels(args.labels)
+    keys = list(TARGETS) if args.target == "all" else [args.target]
+    for key in keys:
+        prepare_target(key, labels)
     print(f"Classes ({len(labels)}): {', '.join(labels)}")
-    print("Place the exported .tflite next to these files, then rebuild the iOS app.")
+    print("iOS → MobileNet | Raspberry Pi → EfficientNet")
 
 
 if __name__ == "__main__":
