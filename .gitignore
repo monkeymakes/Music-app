@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.venv/
+*.tflite
+*.mlmodel
+*.mlpackage
+*.mlmodelc
+GoogleService-Info.plist
+.netlify/
+.DS_Store
+ml/create_ml/TrainingData/**
+ml/create_ml/TestingData/**
+!ml/create_ml/TrainingData/.gitkeep
+!ml/create_ml/TestingData/.gitkeep
+!ml/create_ml/**/.gitkeep
+# TF Serving versioned weights (keep .gitkeep + config in git)
+serving/models/music_vision/**
+!serving/models/music_vision/.gitkeep
+!serving/models/music_vision/labels.txt
+!serving/models/music_vision/serving_manifest.json
