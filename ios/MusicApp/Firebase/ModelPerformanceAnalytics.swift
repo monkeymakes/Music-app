@@ -5,7 +5,8 @@ import FirebaseAnalytics
 ///
 /// Register these custom definitions in the Firebase console
 /// (Analytics → Custom definitions) so they appear in reports:
-/// - Dimensions: `model_name`, `model_source`, `architecture`, `device_class`, `top_label`, `success`
+/// - Dimensions: `model_name`, `model_source`, `architecture`, `device_class`,
+///   `runtime`, `top_label`, `success`
 /// - Metrics: `latency_ms`, `label_count`, `top_confidence`, `value`
 public enum ModelPerformanceAnalytics {
   public static let modelName = "music_vision"
@@ -15,11 +16,12 @@ public enum ModelPerformanceAnalytics {
     case downloaded
   }
 
-  /// Fired when the ML Kit bridge successfully prepares a model.
+  /// Fired when ML Kit or Core ML successfully prepares a model.
   public static func logPrepareSuccess(
     source: ModelSource,
     architecture: VisionModelArchitecture = .mobileNet,
-    deviceClass: VisionDeploymentTarget = .iOSPhone
+    deviceClass: VisionDeploymentTarget = .iOSPhone,
+    runtime: VisionInferenceRuntime = .coreML
   ) {
     guard FirebaseBootstrap.configureIfNeeded() else { return }
     Analytics.logEvent("music_vision_prepare", parameters: [
@@ -27,21 +29,24 @@ public enum ModelPerformanceAnalytics {
       "model_source": source.rawValue,
       "architecture": architecture.rawValue,
       "device_class": deviceClass.rawValue,
+      "runtime": runtime.rawValue,
       "success": "true",
     ])
   }
 
-  /// Fired when prepare fails (missing `.tflite`, etc.).
+  /// Fired when prepare fails (missing `.tflite` / `.mlpackage`, etc.).
   public static func logPrepareFailure(
     message: String,
     architecture: VisionModelArchitecture = .mobileNet,
-    deviceClass: VisionDeploymentTarget = .iOSPhone
+    deviceClass: VisionDeploymentTarget = .iOSPhone,
+    runtime: VisionInferenceRuntime = .coreML
   ) {
     guard FirebaseBootstrap.configureIfNeeded() else { return }
     Analytics.logEvent("music_vision_prepare", parameters: [
       "model_name": modelName,
       "architecture": architecture.rawValue,
       "device_class": deviceClass.rawValue,
+      "runtime": runtime.rawValue,
       "success": "false",
       "error_message": String(message.prefix(100)),
     ])
@@ -54,7 +59,8 @@ public enum ModelPerformanceAnalytics {
     success: Bool,
     errorMessage: String? = nil,
     architecture: VisionModelArchitecture = .mobileNet,
-    deviceClass: VisionDeploymentTarget = .iOSPhone
+    deviceClass: VisionDeploymentTarget = .iOSPhone,
+    runtime: VisionInferenceRuntime = .coreML
   ) {
     guard FirebaseBootstrap.configureIfNeeded() else { return }
 
@@ -62,6 +68,7 @@ public enum ModelPerformanceAnalytics {
       "model_name": modelName,
       "architecture": architecture.rawValue,
       "device_class": deviceClass.rawValue,
+      "runtime": runtime.rawValue,
       "latency_ms": Int(latencyMs.rounded()),
       "label_count": labels.count,
       "success": success ? "true" : "false",
@@ -85,13 +92,15 @@ public enum ModelPerformanceAnalytics {
     rating: ModelFeedbackRating,
     topLabel: String?,
     hasComment: Bool,
-    architecture: VisionModelArchitecture = .mobileNet
+    architecture: VisionModelArchitecture = .mobileNet,
+    runtime: VisionInferenceRuntime = .coreML
   ) {
     guard FirebaseBootstrap.configureIfNeeded() else { return }
     var parameters: [String: Any] = [
       "model_name": modelName,
       "architecture": architecture.rawValue,
       "device_class": VisionDeploymentTarget.iOSPhone.rawValue,
+      "runtime": runtime.rawValue,
       "rating": rating.rawValue,
       "has_comment": hasComment ? "true" : "false",
     ]

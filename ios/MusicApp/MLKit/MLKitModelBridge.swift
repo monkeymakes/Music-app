@@ -47,7 +47,7 @@ public struct MusicVisionLabel: Equatable, Sendable {
 /// Drop the `.tflite` into the app target with **Copy Bundle Resources**.
 /// Optionally place a downloaded remote copy at the documents path in
 /// `Configuration`.
-public final class MLKitModelBridge: @unchecked Sendable {
+public final class MLKitModelBridge: MusicVisionInferencing, @unchecked Sendable {
   public struct Configuration: Sendable {
     /// Bundled resource name without extension (default: MobileNet for iOS).
     public var bundledModelName: String
@@ -98,7 +98,7 @@ public final class MLKitModelBridge: @unchecked Sendable {
   /// Resolves a local model path (downloaded override → bundled) and builds
   /// the ML Kit custom image labeler.
   @discardableResult
-  public func prepare() throws -> LocalModel {
+  public func prepare() throws -> String {
     let localModel = try resolveLocalModel()
     let options = CustomImageLabelerOptions(localModel: localModel)
     options.confidenceThreshold = NSNumber(value: configuration.confidenceThreshold)
@@ -108,7 +108,7 @@ public final class MLKitModelBridge: @unchecked Sendable {
     lock.lock()
     imageLabeler = labeler
     lock.unlock()
-    return localModel
+    return configuration.bundledModelName + ".tflite"
   }
 
   /// Returns whether the labeler has been prepared.

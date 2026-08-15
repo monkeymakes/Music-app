@@ -2,9 +2,10 @@ import Foundation
 import UIKit
 import AVFoundation
 
-/// Music-app facing façade over `MLKitModelBridge`.
+/// Music-app facing façade over ML Kit **or** Apple Core ML.
 ///
 /// **iOS phones default to MobileNet** for fast, accessible on-device vision.
+/// Choose `.mlKit` (TFLite) or `.coreML` (Create ML / Neural Engine).
 /// Logs Firebase Analytics and keeps the last prediction for customer feedback.
 @MainActor
 public final class MusicVisionClassifier: ObservableObject {
@@ -15,28 +16,51 @@ public final class MusicVisionClassifier: ObservableObject {
   @Published public private(set) var lastLatencyMs: Double?
   @Published public private(set) var accessibilitySummary: String = ""
 
-  private let bridge: MLKitModelBridge
+  public let runtime: VisionInferenceRuntime
+  private let engine: MusicVisionInferencing
+  private let mlKitBridge: MLKitModelBridge?
+  private let coreMLBridge: CoreMLModelBridge?
   private let deploymentTarget: VisionDeploymentTarget
   private let announceResults: Bool
   private let modelSourceProvider: () -> ModelPerformanceAnalytics.ModelSource
 
-  public var architecture: VisionModelArchitecture { bridge.architecture }
+  public var architecture: VisionModelArchitecture { engine.architecture }
 
   public init(
+    runtime: VisionInferenceRuntime = .coreML,
     deploymentTarget: VisionDeploymentTarget = .iOSPhone,
     announceResults: Bool = true,
     modelSourceProvider: (() -> ModelPerformanceAnalytics.ModelSource)? = nil
   ) {
-    let bridge = MLKitModelBridge(
-      configuration: .init(deploymentTarget: deploymentTarget)
-    )
-    self.bridge = bridge
+    self.runtime = runtime
     self.deploymentTarget = deploymentTarget
     self.announceResults = announceResults
-    self.modelSourceProvider = modelSourceProvider ?? {
-      RemoteModelDownloader(
-        destinationFileName: bridge.architecture.downloadedModelFileName
-      ).isCached ? .downloaded : .bundled
+
+    switch runtime {
+    case .mlKit:
+      let bridge = MLKitModelBridge(
+        configuration: .init(deploymentTarget: deploymentTarget)
+      )
+      self.mlKitBridge = bridge
+      self.coreMLBridge = nil
+      self.engine = bridge
+      self.modelSourceProvider = modelSourceProvider ?? {
+        RemoteModelDownloader(
+          destinationFileName: bridge.architecture.downloadedModelFileName
+        ).isCached ? .downloaded : .bundled
+      }
+    case .coreML:
+      let bridge = CoreMLModelBridge(
+        configuration: .init(deploymentTarget: deploymentTarget)
+      )
+      self.coreMLBridge = bridge
+      self.mlKitBridge = nil
+      self.engine = bridge
+      self.modelSourceProvider = modelSourceProvider ?? {
+        RemoteModelDownloader(
+          destinationFileName: bridge.architecture.bundledModelName + "_remote.mlpackage"
+        ).isCached ? .downloaded : .bundled
+      }
     }
   }
 
@@ -48,23 +72,42 @@ public final class MusicVisionClassifier: ObservableObject {
       RemoteModelDownloader().isCached ? .downloaded : .bundled
     }
   ) {
-    self.bridge = bridge
+    self.runtime = .mlKit
+    self.mlKitBridge = bridge
+    self.coreMLBridge = nil
+    self.engine = bridge
     self.deploymentTarget = deploymentTarget
     self.announceResults = announceResults
     self.modelSourceProvider = modelSourceProvider
   }
 
-  /// Loads the MobileNet (iOS) `.tflite` model into ML Kit.
+  public init(
+    bridge: CoreMLModelBridge,
+    deploymentTarget: VisionDeploymentTarget = .iOSPhone,
+    announceResults: Bool = true,
+    modelSourceProvider: @escaping () -> ModelPerformanceAnalytics.ModelSource = { .bundled }
+  ) {
+    self.runtime = .coreML
+    self.coreMLBridge = bridge
+    self.mlKitBridge = nil
+    self.engine = bridge
+    self.deploymentTarget = deploymentTarget
+    self.announceResults = announceResults
+    self.modelSourceProvider = modelSourceProvider
+  }
+
+  /// Loads the MobileNet model into ML Kit (`.tflite`) or Core ML (`.mlpackage`).
   public func prepare() {
     _ = FirebaseBootstrap.configureIfNeeded()
     do {
-      _ = try bridge.prepare()
+      _ = try engine.prepare()
       isPrepared = true
       lastError = nil
       ModelPerformanceAnalytics.logPrepareSuccess(
         source: modelSourceProvider(),
         architecture: architecture,
-        deviceClass: deploymentTarget
+        deviceClass: deploymentTarget,
+        runtime: runtime
       )
     } catch {
       isPrepared = false
@@ -72,7 +115,8 @@ public final class MusicVisionClassifier: ObservableObject {
       ModelPerformanceAnalytics.logPrepareFailure(
         message: error.localizedDescription,
         architecture: architecture,
-        deviceClass: deploymentTarget
+        deviceClass: deploymentTarget,
+        runtime: runtime
       )
     }
   }
@@ -84,7 +128,7 @@ public final class MusicVisionClassifier: ObservableObject {
 
     do {
       let labels: [MusicVisionLabel] = try await withCheckedThrowingContinuation { continuation in
-        bridge.classify(image: image) { result in
+        engine.classify(image: image) { result in
           continuation.resume(with: result)
         }
       }
@@ -106,7 +150,8 @@ public final class MusicVisionClassifier: ObservableObject {
         labels: labels,
         success: true,
         architecture: architecture,
-        deviceClass: deploymentTarget
+        deviceClass: deploymentTarget,
+        runtime: runtime
       )
       return labels
     } catch {
@@ -121,7 +166,8 @@ public final class MusicVisionClassifier: ObservableObject {
         success: false,
         errorMessage: error.localizedDescription,
         architecture: architecture,
-        deviceClass: deploymentTarget
+        deviceClass: deploymentTarget,
+        runtime: runtime
       )
       throw error
     }
@@ -135,20 +181,39 @@ public final class MusicVisionClassifier: ObservableObject {
     sampleAnalytics: Bool = Int.random(in: 0..<30) == 0
   ) throws -> [MusicVisionLabel] {
     let started = Date()
-    let architecture = bridge.architecture
+    let activeRuntime: VisionInferenceRuntime = mlKitBridge != nil ? .mlKit : .coreML
+    let activeArchitecture =
+      mlKitBridge?.architecture ?? coreMLBridge?.architecture ?? .mobileNet
     do {
-      let labels = try bridge.classifySync(
-        sampleBuffer: sampleBuffer,
-        cameraPosition: cameraPosition
-      )
+      let labels: [MusicVisionLabel]
+      if let mlKitBridge {
+        labels = try mlKitBridge.classifySync(
+          sampleBuffer: sampleBuffer,
+          cameraPosition: cameraPosition
+        )
+      } else if let coreMLBridge {
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+          throw CoreMLBridgeError.unsupportedImage
+        }
+        let orientation: CGImagePropertyOrientation =
+          cameraPosition == .front ? .leftMirrored : .right
+        labels = try coreMLBridge.classifySync(
+          pixelBuffer: pixelBuffer,
+          orientation: orientation
+        )
+      } else {
+        throw CoreMLBridgeError.modelNotReady
+      }
+
       if sampleAnalytics {
         let latencyMs = Date().timeIntervalSince(started) * 1000
         ModelPerformanceAnalytics.logInference(
           latencyMs: latencyMs,
           labels: labels,
           success: true,
-          architecture: architecture,
-          deviceClass: .iOSPhone
+          architecture: activeArchitecture,
+          deviceClass: .iOSPhone,
+          runtime: activeRuntime
         )
       }
       return labels
@@ -160,8 +225,9 @@ public final class MusicVisionClassifier: ObservableObject {
           labels: [],
           success: false,
           errorMessage: error.localizedDescription,
-          architecture: architecture,
-          deviceClass: .iOSPhone
+          architecture: activeArchitecture,
+          deviceClass: .iOSPhone,
+          runtime: activeRuntime
         )
       }
       throw error
@@ -188,7 +254,8 @@ public final class MusicVisionClassifier: ObservableObject {
       rating: rating,
       topLabel: top?.text,
       hasComment: !comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-      architecture: architecture
+      architecture: architecture,
+      runtime: runtime
     )
   }
 }

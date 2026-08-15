@@ -1,12 +1,39 @@
 import SwiftUI
 
-/// Accessible MobileNet demo: large controls, VoiceOver labels, feedback buttons.
+/// Host that rebuilds `MusicVisionClassifier` when the user toggles Core ML ↔ ML Kit.
 struct MusicVisionDemoView: View {
-  @StateObject private var classifier = MusicVisionClassifier(deploymentTarget: .iOSPhone)
-  @State private var status = "Prepare MobileNet, then run a prediction and rate it."
+  @State private var runtime: VisionInferenceRuntime = .coreML
+
+  var body: some View {
+    MusicVisionRuntimeDemo(runtime: runtime) { newRuntime in
+      runtime = newRuntime
+    }
+    .id(runtime)
+  }
+}
+
+/// Accessible MobileNet demo for a single runtime: large controls, VoiceOver, feedback.
+private struct MusicVisionRuntimeDemo: View {
+  let runtime: VisionInferenceRuntime
+  let onRuntimeChange: (VisionInferenceRuntime) -> Void
+
+  @StateObject private var classifier: MusicVisionClassifier
+  @State private var status: String
   @State private var comment = ""
   @State private var isSubmittingFeedback = false
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+  init(
+    runtime: VisionInferenceRuntime,
+    onRuntimeChange: @escaping (VisionInferenceRuntime) -> Void
+  ) {
+    self.runtime = runtime
+    self.onRuntimeChange = onRuntimeChange
+    _classifier = StateObject(wrappedValue: MusicVisionClassifier(runtime: runtime))
+    _status = State(
+      initialValue: "Prepare MobileNet (\(runtime.displayName)), then run a prediction and rate it."
+    )
+  }
 
   var body: some View {
     ScrollView {
@@ -15,22 +42,29 @@ struct MusicVisionDemoView: View {
           .font(.largeTitle.bold())
           .accessibilityAddTraits(.isHeader)
 
-        Text("iPhone uses MobileNet so results stay fast for assistive technologies.")
+        Text("iPhone uses MobileNet so results stay fast for assistive technologies. Pick Core ML (Create ML) or ML Kit (TFLite).")
           .font(.body)
           .foregroundStyle(.secondary)
-          .accessibilityLabel(
-            "iPhone uses Mobile Net so results stay fast for assistive technologies."
-          )
+
+        Picker("Runtime", selection: Binding(
+          get: { runtime },
+          set: { onRuntimeChange($0) }
+        )) {
+          Text("Core ML").tag(VisionInferenceRuntime.coreML)
+          Text("ML Kit").tag(VisionInferenceRuntime.mlKit)
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel("Inference runtime")
 
         Text(status)
           .font(.body)
           .foregroundStyle(.secondary)
           .accessibilityLabel(status)
 
-        Button("Prepare MobileNet bridge") {
+        Button("Prepare MobileNet (\(runtime.displayName))") {
           classifier.prepare()
           status = classifier.isPrepared
-            ? "MobileNet ready. VoiceOver will announce predictions."
+            ? "\(runtime.displayName) MobileNet ready. VoiceOver will announce predictions."
             : (classifier.lastError ?? "Prepare failed.")
         }
         .buttonStyle(.borderedProminent)
