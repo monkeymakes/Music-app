@@ -1,14 +1,8 @@
 import Foundation
-
-#if canImport(FirebaseStorage)
 import FirebaseStorage
-#endif
 
 /// Downloads a hosted `.tflite` model into the app documents directory so
 /// `MLKitModelBridge` can load it as a `LocalModel` (ML Kit custom-model path).
-///
-/// Firebase Storage is optional: without it, call `install(from:)` with any
-/// already-downloaded file URL (for example after your own Cloud Storage fetch).
 public final class RemoteModelDownloader: Sendable {
   public let destinationFileName: String
 
@@ -36,12 +30,12 @@ public final class RemoteModelDownloader: Sendable {
     FileManager.default.fileExists(atPath: destinationURL.path)
   }
 
-#if canImport(FirebaseStorage)
   /// Downloads from a `gs://` Firebase Storage URL into the bridge cache path.
   public func downloadFromFirebase(
     gsURL: String,
     completion: @escaping (Result<URL, Error>) -> Void
   ) {
+    _ = FirebaseBootstrap.configureIfNeeded()
     let storage = Storage.storage()
     let ref = storage.reference(forURL: gsURL)
     let destination = destinationURL
@@ -62,5 +56,4 @@ public final class RemoteModelDownloader: Sendable {
       }
     }
   }
-#endif
 }

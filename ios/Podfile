@@ -3,6 +3,11 @@ platform :ios, '15.0'
 target 'MusicApp' do
   use_frameworks!
   pod 'GoogleMLKit/ImageLabelingCustom', '8.0.0'
+
+  # Customer feedback + model performance analytics
+  pod 'Firebase/Analytics'
+  pod 'Firebase/Firestore'
+  pod 'Firebase/Storage'
 end
 
 post_install do |installer|

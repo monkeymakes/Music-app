@@ -1,10 +1,11 @@
 import SwiftUI
 
-/// Minimal demo surface for the ML Kit bridge. Wire this into your app target
-/// after `pod install` and adding `music_vision.tflite` to the bundle.
+/// Demo surface for ML Kit inference plus Firebase customer feedback.
 struct MusicVisionDemoView: View {
   @StateObject private var classifier = MusicVisionClassifier()
-  @State private var status = "Tap Prepare, then pick album art."
+  @State private var status = "Tap Prepare, then run a prediction and rate it."
+  @State private var comment = ""
+  @State private var isSubmittingFeedback = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -17,7 +18,7 @@ struct MusicVisionDemoView: View {
       Button("Prepare ML Kit bridge") {
         classifier.prepare()
         status = classifier.isPrepared
-          ? "Bridge ready."
+          ? "Bridge ready. Analytics will record prepare + inference."
           : (classifier.lastError ?? "Prepare failed.")
       }
       .buttonStyle(.borderedProminent)
@@ -31,8 +32,38 @@ struct MusicVisionDemoView: View {
               .monospacedDigit()
           }
         }
+
+        TextField("Optional feedback comment", text: $comment, axis: .vertical)
+          .textFieldStyle(.roundedBorder)
+          .lineLimit(2...4)
+
+        HStack {
+          Button("Helpful") {
+            Task { await sendFeedback(.helpful) }
+          }
+          .buttonStyle(.bordered)
+          .disabled(isSubmittingFeedback)
+
+          Button("Not helpful") {
+            Task { await sendFeedback(.notHelpful) }
+          }
+          .buttonStyle(.bordered)
+          .disabled(isSubmittingFeedback)
+        }
       }
     }
     .padding()
+  }
+
+  private func sendFeedback(_ rating: ModelFeedbackRating) async {
+    isSubmittingFeedback = true
+    defer { isSubmittingFeedback = false }
+    do {
+      try await classifier.submitFeedback(rating: rating, comment: comment)
+      status = "Thanks — feedback saved to Firestore and Analytics."
+      comment = ""
+    } catch {
+      status = error.localizedDescription
+    }
   }
 }
