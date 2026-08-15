@@ -1,0 +1,26 @@
+{
+  "device_class": "raspberry_pi",
+  "architecture": "efficientnet",
+  "model_resource": "music_vision_efficientnet.tflite",
+  "labels_file": "music_vision_efficientnet_labels.txt",
+  "label_count": 10,
+  "labels": [
+    "instrument",
+    "vinyl",
+    "guitar",
+    "piano",
+    "drums",
+    "microphone",
+    "headphones",
+    "album_cover",
+    "concert",
+    "studio"
+  ],
+  "runtime": "tflite-runtime EfficientNet classifier on Raspberry Pi",
+  "accessibility": null,
+  "next_steps": [
+    "Export a metadata-enabled efficientnet .tflite to edge/raspberry_pi/models/music_vision_efficientnet.tflite",
+    "Keep class order identical across MobileNet and EfficientNet exports",
+    "Run edge/raspberry_pi/efficientnet_infer.py on the Pi"
+  ]
+}
