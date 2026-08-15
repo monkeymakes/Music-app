@@ -1,0 +1,40 @@
+{
+  "device_class": "cloud_server",
+  "architecture": "efficientnet",
+  "model_name": "music_vision",
+  "model_resource": "music_vision/1/",
+  "labels_file": "music_vision_labels.txt",
+  "label_count": 10,
+  "labels": [
+    "instrument",
+    "vinyl",
+    "guitar",
+    "piano",
+    "drums",
+    "microphone",
+    "headphones",
+    "album_cover",
+    "concert",
+    "studio"
+  ],
+  "input_size": [
+    224,
+    224,
+    3
+  ],
+  "preprocessing": {
+    "client_default": "RGB float32 in [0, 255] when the SavedModel includes Rescaling",
+    "alternate": "RGB float32 in [-1, 1] via (x / 127.5 - 1.0) for models without normalize"
+  },
+  "runtime": "TensorFlow Serving (Docker) REST :8501 / gRPC :8500",
+  "endpoints": {
+    "status": "GET http://localhost:8501/v1/models/music_vision",
+    "predict": "POST http://localhost:8501/v1/models/music_vision:predict"
+  },
+  "next_steps": [
+    "Place or export a versioned SavedModel under serving/models/music_vision/1/",
+    "Keep class order identical to iOS TinyML/MobileNet and Pi EfficientNet",
+    "docker compose -f serving/docker-compose.yml up",
+    "python3 serving/client/predict_image.py --image path/to/photo.jpg"
+  ]
+}
