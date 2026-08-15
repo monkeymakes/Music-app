@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+*.tflite
+*.mlmodel
+*.mlpackage
+*.mlmodelc
+GoogleService-Info.plist
+.netlify/
+.DS_Store
+
+# TensorFlow Serving local artifacts
+serving/models/music_vision/
+!serving/models/music_vision/.gitkeep
+*.h5
+*.keras

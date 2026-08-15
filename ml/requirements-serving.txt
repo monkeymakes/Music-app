@@ -1,0 +1,4 @@
+# Export Music Vision SavedModels for TensorFlow Serving.
+tensorflow>=2.14.0,<2.17
+numpy>=1.26
+Pillow>=10
