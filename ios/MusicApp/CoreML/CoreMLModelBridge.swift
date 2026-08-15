@@ -47,7 +47,7 @@ public final class CoreMLModelBridge: MusicVisionInferencing, @unchecked Sendabl
       let architecture = deploymentTarget.architecture
       self.architecture = architecture
       self.bundledModelName = architecture.bundledModelName
-      self.downloadedModelFileName = "\(architecture.bundledModelName)_remote.mlpackage"
+      self.downloadedModelFileName = architecture.coreMLDownloadedFileName
       self.confidenceThreshold = confidenceThreshold
       self.maxResultCount = maxResultCount
     }
@@ -55,7 +55,7 @@ public final class CoreMLModelBridge: MusicVisionInferencing, @unchecked Sendabl
     public init(
       bundledModelName: String,
       downloadedModelFileName: String,
-      architecture: VisionModelArchitecture = .mobileNet,
+      architecture: VisionModelArchitecture = .tinyML,
       confidenceThreshold: Float = 0.5,
       maxResultCount: Int = 5
     ) {

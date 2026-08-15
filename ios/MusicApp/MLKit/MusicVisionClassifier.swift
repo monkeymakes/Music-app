@@ -58,7 +58,7 @@ public final class MusicVisionClassifier: ObservableObject {
       self.engine = bridge
       self.modelSourceProvider = modelSourceProvider ?? {
         RemoteModelDownloader(
-          destinationFileName: bridge.architecture.bundledModelName + "_remote.mlpackage"
+          destinationFileName: bridge.architecture.coreMLDownloadedFileName
         ).isCached ? .downloaded : .bundled
       }
     }

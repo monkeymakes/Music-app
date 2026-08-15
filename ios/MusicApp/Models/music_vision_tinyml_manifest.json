@@ -1,0 +1,30 @@
+{
+  "device_class": "ios_phone",
+  "architecture": "tinyml",
+  "runtime": "coreml_or_mlkit",
+  "model_resource_coreml": "music_vision_tinyml.mlpackage",
+  "model_resource_mlkit": "music_vision_tinyml.tflite",
+  "labels_file": "music_vision_tinyml_labels.txt",
+  "label_count": 10,
+  "labels": [
+    "instrument",
+    "vinyl",
+    "guitar",
+    "piano",
+    "drums",
+    "microphone",
+    "headphones",
+    "album_cover",
+    "concert",
+    "studio"
+  ],
+  "why": "TinyML minimizes latency and battery use so accessibility (VoiceOver, larger type) stays smooth for handicapped users.",
+  "base_network": "MobileNetV3-Small (or Create ML compact classifier)",
+  "quantization": "Prefer float16 or int8 via ml/convert_to_coreml.py --tinyml",
+  "next_steps": [
+    "Train a compact Image Classifier in Create ML, or a MobileNetV3-Small Keras model",
+    "Export Core ML: python3 ml/convert_to_coreml.py --tinyml --input MODEL --output ios/MusicApp/Models/music_vision_tinyml.mlpackage",
+    "Or drop TFLite at ios/MusicApp/Models/music_vision_tinyml.tflite for ML Kit",
+    "MusicVisionClassifier(runtime: .coreML)  # defaults to TinyML on iOS"
+  ]
+}

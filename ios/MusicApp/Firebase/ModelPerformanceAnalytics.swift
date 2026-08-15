@@ -19,7 +19,7 @@ public enum ModelPerformanceAnalytics {
   /// Fired when ML Kit or Core ML successfully prepares a model.
   public static func logPrepareSuccess(
     source: ModelSource,
-    architecture: VisionModelArchitecture = .mobileNet,
+    architecture: VisionModelArchitecture = .tinyML,
     deviceClass: VisionDeploymentTarget = .iOSPhone,
     runtime: VisionInferenceRuntime = .coreML
   ) {
@@ -37,7 +37,7 @@ public enum ModelPerformanceAnalytics {
   /// Fired when prepare fails (missing `.tflite` / `.mlpackage`, etc.).
   public static func logPrepareFailure(
     message: String,
-    architecture: VisionModelArchitecture = .mobileNet,
+    architecture: VisionModelArchitecture = .tinyML,
     deviceClass: VisionDeploymentTarget = .iOSPhone,
     runtime: VisionInferenceRuntime = .coreML
   ) {
@@ -58,7 +58,7 @@ public enum ModelPerformanceAnalytics {
     labels: [MusicVisionLabel],
     success: Bool,
     errorMessage: String? = nil,
-    architecture: VisionModelArchitecture = .mobileNet,
+    architecture: VisionModelArchitecture = .tinyML,
     deviceClass: VisionDeploymentTarget = .iOSPhone,
     runtime: VisionInferenceRuntime = .coreML
   ) {
@@ -92,7 +92,7 @@ public enum ModelPerformanceAnalytics {
     rating: ModelFeedbackRating,
     topLabel: String?,
     hasComment: Bool,
-    architecture: VisionModelArchitecture = .mobileNet,
+    architecture: VisionModelArchitecture = .tinyML,
     runtime: VisionInferenceRuntime = .coreML
   ) {
     guard FirebaseBootstrap.configureIfNeeded() else { return }

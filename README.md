@@ -2,33 +2,22 @@
 
 Share music with others.
 
-## Cloud ML Vision (iOS + Pi)
+## Cloud ML Vision
 
 | Device | Model | Runtime |
 | --- | --- | --- |
-| **iOS phone** | **MobileNet** (fast / accessible) | **Core ML** (Create ML) and/or **ML Kit** (TFLite) |
-| **Raspberry Pi** | **EfficientNet** (higher accuracy) | TFLite runtime |
-
-MobileNet on phones keeps VoiceOver and assistive flows responsive. EfficientNet on Pis uses more compute where power is less constrained.
-
-### iOS dual stack
-
-| Path | Role |
-| --- | --- |
-| [`ios/MusicApp/CoreML/`](ios/MusicApp/CoreML/) | Apple Core ML + Vision (`VNCoreMLRequest`) |
-| [`ios/MusicApp/MLKit/`](ios/MusicApp/MLKit/) | Google ML Kit custom TFLite bridge |
-| [`ml/create_ml/`](ml/create_ml/README.md) | Create ML training data layout |
-| [`ml/prepare_coreml_model.py`](ml/prepare_coreml_model.py) | Core ML labels + checklist |
-| [`ml/convert_to_coreml.py`](ml/convert_to_coreml.py) | Keras/SavedModel → `.mlpackage` |
-| [`ml/prepare_mlkit_model.py`](ml/prepare_mlkit_model.py) | ML Kit / Pi label sidecars |
-| [`ios/MusicApp/Firebase/`](ios/MusicApp/Firebase/) | Analytics + Firestore feedback |
+| **iOS phone** | **TinyML** (default, fastest / accessible) | Core ML and/or ML Kit |
+| **iOS phone** | MobileNet (optional) | Core ML / ML Kit |
+| **Raspberry Pi** | **EfficientNet** | TFLite |
 
 ```swift
-MusicVisionClassifier(runtime: .coreML) // Create ML → Neural Engine
-MusicVisionClassifier(runtime: .mlKit)   // TFLite → ML Kit
+MusicVisionClassifier(runtime: .coreML).prepare() // TinyML via Create ML / Core ML
+MusicVisionClassifier(runtime: .mlKit).prepare()
 ```
 
 ```bash
-python3 ml/prepare_coreml_model.py
-python3 ml/prepare_mlkit_model.py
+python3 ml/prepare_tinyml_model.py
+python3 ml/convert_to_coreml.py --tinyml --input path/to/model
 ```
+
+See [`ml/tinyml/README.md`](ml/tinyml/README.md), [`ios/README.md`](ios/README.md), [`ml/create_ml/README.md`](ml/create_ml/README.md).

@@ -5,7 +5,7 @@ import UIKit
 /// and other assistive technologies on iPhone.
 public enum MusicVisionAccessibility {
   /// Spoken / accessibility summary of model labels, highest confidence first.
-  public static func announcement(for labels: [MusicVisionLabel], architecture: VisionModelArchitecture = .mobileNet) -> String {
+  public static func announcement(for labels: [MusicVisionLabel], architecture: VisionModelArchitecture = .tinyML) -> String {
     guard let top = labels.max(by: { $0.confidence < $1.confidence }) else {
       return "No music scene detected."
     }
@@ -30,7 +30,7 @@ public enum MusicVisionAccessibility {
 
   /// Posts a VoiceOver announcement after inference (no-op if VoiceOver is off).
   @MainActor
-  public static func announce(_ labels: [MusicVisionLabel], architecture: VisionModelArchitecture = .mobileNet) {
+  public static func announce(_ labels: [MusicVisionLabel], architecture: VisionModelArchitecture = .tinyML) {
     guard UIAccessibility.isVoiceOverRunning else { return }
     let message = announcement(for: labels, architecture: architecture)
     UIAccessibility.post(notification: .announcement, argument: message)

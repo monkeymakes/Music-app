@@ -42,7 +42,7 @@ private struct MusicVisionRuntimeDemo: View {
           .font(.largeTitle.bold())
           .accessibilityAddTraits(.isHeader)
 
-        Text("iPhone uses MobileNet so results stay fast for assistive technologies. Pick Core ML (Create ML) or ML Kit (TFLite).")
+        Text("iPhone uses TinyML so results stay fast for assistive technologies. Pick Core ML or ML Kit.")
           .font(.body)
           .foregroundStyle(.secondary)
 
@@ -61,15 +61,15 @@ private struct MusicVisionRuntimeDemo: View {
           .foregroundStyle(.secondary)
           .accessibilityLabel(status)
 
-        Button("Prepare MobileNet (\(runtime.displayName))") {
+        Button("Prepare TinyML (\(runtime.displayName))") {
           classifier.prepare()
           status = classifier.isPrepared
-            ? "\(runtime.displayName) MobileNet ready. VoiceOver will announce predictions."
+            ? "\(runtime.displayName) TinyML ready. VoiceOver will announce predictions."
             : (classifier.lastError ?? "Prepare failed.")
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
-        .accessibilityHint("Loads the MobileNet model for on-device music scene detection.")
+        .accessibilityHint("Loads the TinyML model for on-device music scene detection.")
 
         if !classifier.lastLabels.isEmpty {
           Text(classifier.accessibilitySummary)
