@@ -1,0 +1,26 @@
+# Music Vision — TensorFlow Serving
+# Works with Docker Compose or Podman Compose (preferred when available).
+#
+#   ./serving/up.sh
+#   # or:
+#   podman compose -f serving/docker-compose.yml up -d
+#   docker compose -f serving/docker-compose.yml up -d
+
+services:
+  music-vision-serving:
+    image: tensorflow/serving:2.14.1
+    container_name: music-vision-tfserving
+    ports:
+      - "8500:8500" # gRPC
+      - "8501:8501" # REST
+    volumes:
+      - ./models:/models:ro
+      - ./models.config:/models/models.config:ro
+    environment:
+      MODEL_NAME: music_vision
+    command:
+      - --model_config_file=/models/models.config
+      - --model_config_file_poll_wait_seconds=30
+      - --rest_api_port=8501
+      - --port=8500
+    restart: unless-stopped
