@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.venv/
+*.tflite
+GoogleService-Info.plist
+.netlify/
+.DS_Store
