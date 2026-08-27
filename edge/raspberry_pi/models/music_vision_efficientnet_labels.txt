@@ -1,0 +1,10 @@
+instrument
+vinyl
+guitar
+piano
+drums
+microphone
+headphones
+album_cover
+concert
+studio
