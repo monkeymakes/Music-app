@@ -10,6 +10,7 @@ public enum ServerSideInferenceError: Error, LocalizedError {
   case emptyLabels
   case emptyBatch
   case streamNotOpen
+  case invalidSampleWeight
 
   public var errorDescription: String? {
     switch self {
@@ -29,6 +30,8 @@ public enum ServerSideInferenceError: Error, LocalizedError {
       return "Batch request requires at least one image."
     case .streamNotOpen:
       return "Open a stream session before pushing frames."
+    case .invalidSampleWeight:
+      return "sampleWeight must be greater than 0."
     }
   }
 }
@@ -241,7 +244,9 @@ public final class ServerSideInferenceClient: @unchecked Sendable {
   public func createStreamSession(
     batchSize: Int = 8,
     maxWaitMs: Int = 500,
-    idleTtlMs: Int = 60_000
+    idleTtlMs: Int = 60_000,
+    samplingMode: StreamSamplingMode = .fifo,
+    sampleWindow: Int = 0
   ) async throws -> ServerSideStreamSessionInfo {
     guard isReady else { throw ServerSideInferenceError.notPrepared }
 
@@ -257,6 +262,8 @@ public final class ServerSideInferenceClient: @unchecked Sendable {
       "batch_size": batchSize,
       "max_wait_ms": maxWaitMs,
       "idle_ttl_ms": idleTtlMs,
+      "sampling_mode": samplingMode.rawValue,
+      "sample_window": sampleWindow,
     ]
     if let pinned = configuration.pinnedVersion {
       payload["version"] = pinned
@@ -275,10 +282,14 @@ public final class ServerSideInferenceClient: @unchecked Sendable {
   /// Uploads one frame to an open stream session.
   public func pushStreamFrame(
     image: UIImage,
-    clientIndex: Int? = nil
+    clientIndex: Int? = nil,
+    sampleWeight: Double = 1.0
   ) async throws -> ServerSideStreamFrameResponse {
     guard let sessionId = activeStreamSessionId else {
       throw ServerSideInferenceError.streamNotOpen
+    }
+    guard sampleWeight > 0 else {
+      throw ServerSideInferenceError.invalidSampleWeight
     }
     guard let jpeg = image.jpegData(compressionQuality: configuration.jpegQuality) else {
       throw ServerSideInferenceError.encodingFailed
@@ -298,6 +309,9 @@ public final class ServerSideInferenceClient: @unchecked Sendable {
       body.append("Content-Disposition: form-data; name=\"client_index\"\r\n\r\n".data(using: .utf8)!)
       body.append("\(clientIndex)\r\n".data(using: .utf8)!)
     }
+    body.append("--\(boundary)\r\n".data(using: .utf8)!)
+    body.append("Content-Disposition: form-data; name=\"sample_weight\"\r\n\r\n".data(using: .utf8)!)
+    body.append("\(sampleWeight)\r\n".data(using: .utf8)!)
     body.append("--\(boundary)\r\n".data(using: .utf8)!)
     body.append(
       "Content-Disposition: form-data; name=\"image\"; filename=\"frame.jpg\"\r\n".data(using: .utf8)!

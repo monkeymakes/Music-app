@@ -11,9 +11,9 @@ Endpoints:
   GET  /v1/models/{name}/active?channel=production
   POST /v1/infer  (multipart: image=..., optional model/channel/version/top_k)
   POST /v1/infer/batch  (multipart: images=..., optional model/channel/version/top_k)
-  POST /v1/stream/sessions
+  POST /v1/stream/sessions  (JSON: sampling_mode=fifo|weighted_reservoir, ...)
   GET  /v1/stream/sessions/{session_id}
-  POST /v1/stream/sessions/{session_id}/frames
+  POST /v1/stream/sessions/{session_id}/frames  (multipart: image, sample_weight)
   POST /v1/stream/sessions/{session_id}/flush
   DELETE /v1/stream/sessions/{session_id}
   POST /v1/reload-registry
@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field
 
 from server.inference.engine import infer_image, infer_images_batch, load_labels
 from server.inference.registry_loader import ModelRegistry, ResolvedModel
-from server.inference.stream import StreamSessionManager
+from server.inference.stream import VALID_SAMPLING_MODES, StreamSessionManager
 
 ROOT = Path(__file__).resolve().parents[2]
 ALLOW_MOCK = os.environ.get("ALLOW_MOCK_INFERENCE", "1") == "1"
@@ -43,11 +43,17 @@ MAX_BATCH_SIZE = int(os.environ.get("MUSIC_VISION_MAX_BATCH_SIZE", "32"))
 DEFAULT_STREAM_BATCH_SIZE = int(os.environ.get("MUSIC_VISION_STREAM_BATCH_SIZE", "8"))
 DEFAULT_STREAM_MAX_WAIT_MS = int(os.environ.get("MUSIC_VISION_STREAM_MAX_WAIT_MS", "500"))
 DEFAULT_STREAM_IDLE_TTL_MS = int(os.environ.get("MUSIC_VISION_STREAM_IDLE_TTL_MS", "60000"))
+DEFAULT_STREAM_SAMPLING_MODE = os.environ.get(
+    "MUSIC_VISION_STREAM_SAMPLING_MODE", "fifo"
+)
 
 app = FastAPI(
     title="Music Vision Server-Side Inference",
-    version="1.1.0",
-    description="Versioned TFLite inference with batch and stream frame processing.",
+    version="1.2.0",
+    description=(
+        "Versioned TFLite inference with batch processing and "
+        "FIFO / weighted-reservoir stream frame sampling."
+    ),
 )
 app.add_middleware(
     CORSMiddleware,
@@ -111,6 +117,8 @@ class StreamSessionCreateRequest(BaseModel):
     batch_size: int = DEFAULT_STREAM_BATCH_SIZE
     max_wait_ms: int = DEFAULT_STREAM_MAX_WAIT_MS
     idle_ttl_ms: int = DEFAULT_STREAM_IDLE_TTL_MS
+    sampling_mode: str = DEFAULT_STREAM_SAMPLING_MODE
+    sample_window: int = 0
 
 
 class StreamSessionResponse(BaseModel):
@@ -122,15 +130,22 @@ class StreamSessionResponse(BaseModel):
     batch_size: int
     max_wait_ms: int
     idle_ttl_ms: int
+    sampling_mode: str = "fifo"
+    sample_window: int = 0
     pending_frames: int = 0
     total_frames_received: int = 0
     total_batches_flushed: int = 0
+    frames_since_flush: int = 0
+    should_auto_flush: bool = False
+    reservoir: dict | None = None
 
 
 class StreamFrameResponse(BaseModel):
     frame_id: str
     session_id: str
     pending_frames: int
+    selected: bool = True
+    sample_weight: float = 1.0
     auto_flushed: bool
     flush: StreamFlushResponse | None = None
 
@@ -142,6 +157,9 @@ class StreamFlushResponse(BaseModel):
     pending_frames: int
     total_latency_ms: float
     engine_mode: str
+    sampling_mode: str = "fifo"
+    frames_considered: int = 0
+    reservoir_stats: dict | None = None
     results: list[dict]
 
 
@@ -312,6 +330,21 @@ async def infer_batch(
     )
 
 
+def _flush_response(flushed) -> StreamFlushResponse:
+    return StreamFlushResponse(
+        batch_id=flushed.batch_id,
+        session_id=flushed.session_id,
+        flushed_count=flushed.flushed_count,
+        pending_frames=flushed.pending_count,
+        total_latency_ms=flushed.total_latency_ms,
+        engine_mode=flushed.engine_mode,
+        sampling_mode=flushed.sampling_mode,
+        frames_considered=flushed.frames_considered,
+        reservoir_stats=flushed.reservoir_stats,
+        results=flushed.results,
+    )
+
+
 @app.post("/v1/stream/sessions", response_model=StreamSessionResponse)
 def create_stream_session(body: StreamSessionCreateRequest) -> StreamSessionResponse:
     _validate_top_k(body.top_k)
@@ -320,26 +353,32 @@ def create_stream_session(body: StreamSessionCreateRequest) -> StreamSessionResp
         raise HTTPException(status_code=400, detail="max_wait_ms must be 50..10000")
     if body.idle_ttl_ms < 1000 or body.idle_ttl_ms > 3600000:
         raise HTTPException(status_code=400, detail="idle_ttl_ms must be 1000..3600000")
+    if body.sampling_mode not in VALID_SAMPLING_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"sampling_mode must be one of {sorted(VALID_SAMPLING_MODES)}",
+        )
+    if body.sample_window < 0 or body.sample_window > 10_000:
+        raise HTTPException(status_code=400, detail="sample_window must be 0..10000")
 
-    session = stream_sessions.create_session(
-        model=body.model,
-        channel=body.channel,
-        version=body.version,
-        top_k=body.top_k,
-        batch_size=body.batch_size,
-        max_wait_ms=body.max_wait_ms,
-        idle_ttl_ms=body.idle_ttl_ms,
-    )
-    return StreamSessionResponse(
-        session_id=session.session_id,
-        model=session.model,
-        channel=session.channel,
-        version=session.version,
-        top_k=session.top_k,
-        batch_size=session.batch_size,
-        max_wait_ms=session.max_wait_ms,
-        idle_ttl_ms=session.idle_ttl_ms,
-    )
+    try:
+        session = stream_sessions.create_session(
+            model=body.model,
+            channel=body.channel,
+            version=body.version,
+            top_k=body.top_k,
+            batch_size=body.batch_size,
+            max_wait_ms=body.max_wait_ms,
+            idle_ttl_ms=body.idle_ttl_ms,
+            sampling_mode=body.sampling_mode,  # type: ignore[arg-type]
+            sample_window=body.sample_window,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    status = stream_sessions.session_status(session.session_id)
+    assert status is not None
+    return StreamSessionResponse(**status)
 
 
 @app.get("/v1/stream/sessions/{session_id}", response_model=StreamSessionResponse)
@@ -355,19 +394,25 @@ async def push_stream_frame(
     session_id: str,
     image: UploadFile = File(...),
     client_index: int | None = Form(None),
+    sample_weight: float = Form(1.0),
 ) -> StreamFrameResponse:
     image_bytes = await image.read()
     if not image_bytes:
         raise HTTPException(status_code=400, detail="Empty frame upload")
+    if sample_weight <= 0:
+        raise HTTPException(status_code=400, detail="sample_weight must be > 0")
 
     try:
         session, frame, should_flush = stream_sessions.add_frame(
             session_id,
             image_bytes=image_bytes,
             client_index=client_index,
+            sample_weight=sample_weight,
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     flush_response: StreamFlushResponse | None = None
     if should_flush:
@@ -388,15 +433,7 @@ async def push_stream_frame(
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
         if flushed is not None:
-            flush_response = StreamFlushResponse(
-                batch_id=flushed.batch_id,
-                session_id=flushed.session_id,
-                flushed_count=flushed.flushed_count,
-                pending_frames=flushed.pending_count,
-                total_latency_ms=flushed.total_latency_ms,
-                engine_mode=flushed.engine_mode,
-                results=flushed.results,
-            )
+            flush_response = _flush_response(flushed)
 
     status = stream_sessions.session_status(session_id)
     pending = status["pending_frames"] if status else 0
@@ -404,6 +441,8 @@ async def push_stream_frame(
         frame_id=frame.frame_id,
         session_id=session_id,
         pending_frames=pending,
+        selected=frame.selected,
+        sample_weight=frame.weight,
         auto_flushed=flush_response is not None,
         flush=flush_response,
     )
@@ -436,15 +475,7 @@ def flush_stream_session(session_id: str) -> StreamFlushResponse:
     if flushed is None:
         raise HTTPException(status_code=409, detail="No pending frames to flush")
 
-    return StreamFlushResponse(
-        batch_id=flushed.batch_id,
-        session_id=flushed.session_id,
-        flushed_count=flushed.flushed_count,
-        pending_frames=flushed.pending_count,
-        total_latency_ms=flushed.total_latency_ms,
-        engine_mode=flushed.engine_mode,
-        results=flushed.results,
-    )
+    return _flush_response(flushed)
 
 
 @app.delete("/v1/stream/sessions/{session_id}")

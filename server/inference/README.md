@@ -53,7 +53,7 @@ curl -s -X POST http://127.0.0.1:8080/v1/infer/batch \
 
 ### Stream frame batching
 
-Create a session, push camera frames, and let the server auto-flush when `batch_size` is reached:
+Create a session, push camera frames, and let the server auto-flush when `batch_size` is reached (FIFO) or when a weighted reservoir window completes:
 
 ```bash
 SESSION=$(curl -s -X POST http://127.0.0.1:8080/v1/stream/sessions \
@@ -67,6 +67,33 @@ curl -s -X POST "http://127.0.0.1:8080/v1/stream/sessions/$SESSION/frames" \
 curl -s -X POST "http://127.0.0.1:8080/v1/stream/sessions/$SESSION/flush" | jq
 curl -s -X DELETE "http://127.0.0.1:8080/v1/stream/sessions/$SESSION"
 ```
+
+#### Weighted reservoir sampling
+
+For high-frequency camera streams, use Algorithm A-Res so the server keeps a fixed-size, weight-biased sample instead of inferring every frame:
+
+```bash
+SESSION=$(curl -s -X POST http://127.0.0.1:8080/v1/stream/sessions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model":"music_vision_efficientnet",
+    "batch_size":4,
+    "max_wait_ms":1000,
+    "sampling_mode":"weighted_reservoir",
+    "sample_window":16
+  }' | jq -r .session_id)
+
+# Prefer sharper / more salient frames with a higher sample_weight
+curl -s -X POST "http://127.0.0.1:8080/v1/stream/sessions/$SESSION/frames" \
+  -F image=@/path/to/frame.jpg -F sample_weight=3.5 | jq
+```
+
+- `batch_size` — reservoir capacity (how many frames are kept for each flush)
+- `sample_window` — offer this many frames before auto-flush (default `batch_size * 4` when `0`)
+- `max_wait_ms` — also auto-flush when the current window is older than this
+- `sample_weight` — per-frame weight (`> 0`); higher weight ⇒ more likely to stay in the sample
+
+On iOS, pass `samplingMode: .weightedReservoir` to `ServerSideStreamSession.open` / `MusicVisionClassifier.openStreamSession`, and `sampleWeight:` to `pushFrame`.
 
 On iOS, use `ServerSideStreamSession` or `MusicVisionClassifier.openStreamSession()` for server-side camera batching, and `classifyBatch(images:)` for still-image batches.
 
@@ -97,8 +124,9 @@ curl -s -X POST http://127.0.0.1:8080/v1/infer \
 | `ALLOW_MOCK_INFERENCE` | `1` | Allow mock scores when artifact missing |
 | `CORS_ALLOW_ORIGINS` | `*` | CORS origins |
 | `MUSIC_VISION_MAX_BATCH_SIZE` | `32` | Max images per batch request |
-| `MUSIC_VISION_STREAM_BATCH_SIZE` | `8` | Default stream session batch size |
+| `MUSIC_VISION_STREAM_BATCH_SIZE` | `8` | Default stream session batch size / reservoir capacity |
 | `MUSIC_VISION_STREAM_MAX_WAIT_MS` | `500` | Default max wait before auto-flush |
 | `MUSIC_VISION_STREAM_IDLE_TTL_MS` | `60000` | Stream session idle expiry |
+| `MUSIC_VISION_STREAM_SAMPLING_MODE` | `fifo` | Default `fifo` or `weighted_reservoir` |
 
 Set `ALLOW_MOCK_INFERENCE=0` in production once real artifacts are present.

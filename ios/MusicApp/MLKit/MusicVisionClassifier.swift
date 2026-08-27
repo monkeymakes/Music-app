@@ -349,13 +349,20 @@ public final class MusicVisionClassifier: ObservableObject {
   /// Opens a server-side stream session for batched camera frame inference.
   public func openStreamSession(
     batchSize: Int = 8,
-    maxWaitMs: Int = 500
+    maxWaitMs: Int = 500,
+    samplingMode: StreamSamplingMode = .fifo,
+    sampleWindow: Int = 0
   ) async throws -> ServerSideStreamSession {
     guard runtime == .serverSide, let serverClient else {
       throw ServerSideInferenceError.notPrepared
     }
     let session = ServerSideStreamSession(client: serverClient)
-    _ = try await session.open(batchSize: batchSize, maxWaitMs: maxWaitMs)
+    _ = try await session.open(
+      batchSize: batchSize,
+      maxWaitMs: maxWaitMs,
+      samplingMode: samplingMode,
+      sampleWindow: sampleWindow
+    )
     return session
   }
 

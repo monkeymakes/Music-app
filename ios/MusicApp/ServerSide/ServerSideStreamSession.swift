@@ -48,9 +48,12 @@ public struct ServerSideStreamSessionInfo: Decodable, Sendable {
   public var batchSize: Int
   public var maxWaitMs: Int
   public var idleTtlMs: Int
+  public var samplingMode: String
+  public var sampleWindow: Int
   public var pendingFrames: Int
   public var totalFramesReceived: Int
   public var totalBatchesFlushed: Int
+  public var framesSinceFlush: Int
 
   enum CodingKeys: String, CodingKey {
     case model, channel, version
@@ -59,10 +62,21 @@ public struct ServerSideStreamSessionInfo: Decodable, Sendable {
     case batchSize = "batch_size"
     case maxWaitMs = "max_wait_ms"
     case idleTtlMs = "idle_ttl_ms"
+    case samplingMode = "sampling_mode"
+    case sampleWindow = "sample_window"
     case pendingFrames = "pending_frames"
     case totalFramesReceived = "total_frames_received"
     case totalBatchesFlushed = "total_batches_flushed"
+    case framesSinceFlush = "frames_since_flush"
   }
+}
+
+/// How the server selects frames from a high-frequency camera stream.
+public enum StreamSamplingMode: String, Sendable {
+  /// Keep frames in arrival order until `batchSize` (legacy behavior).
+  case fifo
+  /// Algorithm A-Res weighted reservoir of capacity `batchSize`.
+  case weightedReservoir = "weighted_reservoir"
 }
 
 /// One frame result inside a stream flush payload.
@@ -71,6 +85,7 @@ public struct ServerSideStreamFrameResult: Decodable, Sendable {
   public var clientIndex: Int?
   public var index: Int
   public var latencyMs: Double
+  public var sampleWeight: Double
   public var labels: [ServerSideLabel]
 
   enum CodingKeys: String, CodingKey {
@@ -78,6 +93,7 @@ public struct ServerSideStreamFrameResult: Decodable, Sendable {
     case frameId = "frame_id"
     case clientIndex = "client_index"
     case latencyMs = "latency_ms"
+    case sampleWeight = "sample_weight"
   }
 }
 
@@ -89,6 +105,8 @@ public struct ServerSideStreamFlushResponse: Decodable, Sendable {
   public var pendingFrames: Int
   public var totalLatencyMs: Double
   public var engineMode: String
+  public var samplingMode: String
+  public var framesConsidered: Int
   public var results: [ServerSideStreamFrameResult]
 
   enum CodingKeys: String, CodingKey {
@@ -99,6 +117,8 @@ public struct ServerSideStreamFlushResponse: Decodable, Sendable {
     case pendingFrames = "pending_frames"
     case totalLatencyMs = "total_latency_ms"
     case engineMode = "engine_mode"
+    case samplingMode = "sampling_mode"
+    case framesConsidered = "frames_considered"
   }
 }
 
@@ -107,14 +127,17 @@ public struct ServerSideStreamFrameResponse: Decodable, Sendable {
   public var frameId: String
   public var sessionId: String
   public var pendingFrames: Int
+  public var selected: Bool
+  public var sampleWeight: Double
   public var autoFlushed: Bool
   public var flush: ServerSideStreamFlushResponse?
 
   enum CodingKeys: String, CodingKey {
-    case flush
+    case flush, selected
     case frameId = "frame_id"
     case sessionId = "session_id"
     case pendingFrames = "pending_frames"
+    case sampleWeight = "sample_weight"
     case autoFlushed = "auto_flushed"
   }
 }
@@ -136,7 +159,9 @@ public final class ServerSideStreamSession: @unchecked Sendable {
   public func open(
     batchSize: Int = 8,
     maxWaitMs: Int = 500,
-    idleTtlMs: Int = 60_000
+    idleTtlMs: Int = 60_000,
+    samplingMode: StreamSamplingMode = .fifo,
+    sampleWindow: Int = 0
   ) async throws -> ServerSideStreamSessionInfo {
     if !client.isReady {
       _ = try await client.prepare()
@@ -144,7 +169,9 @@ public final class ServerSideStreamSession: @unchecked Sendable {
     let info = try await client.createStreamSession(
       batchSize: batchSize,
       maxWaitMs: maxWaitMs,
-      idleTtlMs: idleTtlMs
+      idleTtlMs: idleTtlMs,
+      samplingMode: samplingMode,
+      sampleWindow: sampleWindow
     )
     sessionInfo = info
     isOpen = true
@@ -153,11 +180,19 @@ public final class ServerSideStreamSession: @unchecked Sendable {
   }
 
   /// Pushes one JPEG frame; returns flush results when the server auto-batches.
-  public func pushFrame(_ image: UIImage) async throws -> ServerSideStreamFrameResponse {
+  /// - Parameter sampleWeight: Relative importance for weighted reservoir sessions (`> 0`).
+  public func pushFrame(
+    _ image: UIImage,
+    sampleWeight: Double = 1.0
+  ) async throws -> ServerSideStreamFrameResponse {
     guard isOpen else { throw ServerSideInferenceError.streamNotOpen }
     let index = clientFrameIndex
     clientFrameIndex += 1
-    let response = try await client.pushStreamFrame(image: image, clientIndex: index)
+    let response = try await client.pushStreamFrame(
+      image: image,
+      clientIndex: index,
+      sampleWeight: sampleWeight
+    )
     if let flush = response.flush {
       ModelPerformanceAnalytics.logStreamBatch(
         flushedCount: flush.flushedCount,

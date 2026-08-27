@@ -212,6 +212,25 @@ def test_fastapi_infer_mock() -> None:
     assert body["runtime"] == "server_side"
 
 
+def test_weighted_reservoir_prefers_high_weights() -> None:
+    import random
+
+    from server.inference.reservoir import WeightedReservoir
+
+    rng = random.Random(42)
+    reservoir = WeightedReservoir[str](capacity=20, rng=rng)
+    for i in range(200):
+        # Items 0..19 are heavy; 20..199 are light.
+        weight = 50.0 if i < 20 else 1.0
+        reservoir.offer(f"item-{i}", weight=weight)
+
+    selected = set(reservoir.items())
+    heavy_hits = sum(1 for i in range(20) if f"item-{i}" in selected)
+    # With 50× weight, most heavy items should survive in the sample.
+    assert heavy_hits >= 10, f"expected heavy bias, got {heavy_hits}/20 heavy items"
+    assert len(selected) == 20
+
+
 def test_fastapi_infer_batch_and_stream_mock() -> None:
     from fastapi.testclient import TestClient
     from PIL import Image
@@ -251,9 +270,11 @@ def test_fastapi_infer_batch_and_stream_mock() -> None:
             "top_k": 2,
             "batch_size": 2,
             "max_wait_ms": 500,
+            "sampling_mode": "fifo",
         },
     )
     assert session.status_code == 200, session.text
+    assert session.json()["sampling_mode"] == "fifo"
     session_id = session.json()["session_id"]
 
     frame1 = client.post(
@@ -262,6 +283,7 @@ def test_fastapi_infer_batch_and_stream_mock() -> None:
     )
     assert frame1.status_code == 200, frame1.text
     assert frame1.json()["auto_flushed"] is False
+    assert frame1.json()["selected"] is True
 
     frame2 = client.post(
         f"/v1/stream/sessions/{session_id}/frames",
@@ -271,6 +293,66 @@ def test_fastapi_infer_batch_and_stream_mock() -> None:
     flushed = frame2.json()
     assert flushed["auto_flushed"] is True
     assert flushed["flush"]["flushed_count"] == 2
+    assert flushed["flush"]["sampling_mode"] == "fifo"
+
+    deleted = client.delete(f"/v1/stream/sessions/{session_id}")
+    assert deleted.status_code == 200
+
+
+def test_fastapi_weighted_reservoir_stream_mock() -> None:
+    from fastapi.testclient import TestClient
+    from PIL import Image
+
+    from server.inference.app import app
+
+    client = TestClient(app)
+
+    def make_jpeg(color: tuple[int, int, int]) -> bytes:
+        buf = BytesIO()
+        Image.new("RGB", (32, 32), color=color).save(buf, format="JPEG")
+        return buf.getvalue()
+
+    session = client.post(
+        "/v1/stream/sessions",
+        json={
+            "model": "music_vision_efficientnet",
+            "channel": "production",
+            "top_k": 2,
+            "batch_size": 2,
+            "max_wait_ms": 10_000,
+            "sampling_mode": "weighted_reservoir",
+            "sample_window": 6,
+        },
+    )
+    assert session.status_code == 200, session.text
+    body = session.json()
+    assert body["sampling_mode"] == "weighted_reservoir"
+    assert body["sample_window"] == 6
+    session_id = body["session_id"]
+
+    last = None
+    for i in range(6):
+        weight = "100.0" if i in (0, 1) else "0.01"
+        last = client.post(
+            f"/v1/stream/sessions/{session_id}/frames",
+            data={"sample_weight": weight, "client_index": str(i)},
+            files={"image": (f"f{i}.jpg", make_jpeg((i * 20, 40, 60)), "image/jpeg")},
+        )
+        assert last.status_code == 200, last.text
+
+    assert last is not None
+    flushed = last.json()
+    assert flushed["auto_flushed"] is True
+    flush = flushed["flush"]
+    assert flush["sampling_mode"] == "weighted_reservoir"
+    assert flush["frames_considered"] == 6
+    assert flush["flushed_count"] == 2
+    assert flush["reservoir_stats"]["seen"] == 6
+    # Heavy early frames should dominate the capacity-2 sample.
+    client_indexes = {item["client_index"] for item in flush["results"]}
+    assert client_indexes == {0, 1}, f"expected heavy frames, got {client_indexes}"
+    for item in flush["results"]:
+        assert item["sample_weight"] == 100.0
 
     deleted = client.delete(f"/v1/stream/sessions/{session_id}")
     assert deleted.status_code == 200
@@ -288,6 +370,10 @@ def main() -> None:
     print("ok fastapi infer mock")
     test_fastapi_infer_batch_and_stream_mock()
     print("ok fastapi batch + stream mock")
+    test_weighted_reservoir_prefers_high_weights()
+    print("ok weighted reservoir unit")
+    test_fastapi_weighted_reservoir_stream_mock()
+    print("ok fastapi weighted reservoir stream mock")
     print("all smoke tests passed")
 
 
