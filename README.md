@@ -14,6 +14,9 @@ Share music with others.
 ```swift
 MusicVisionClassifier(runtime: .coreML).prepare() // TinyML on-device
 MusicVisionClassifier(runtime: .serverSide).prepare() // versioned remote infer
+try await classifier.classifyBatch(images: photos) // batch still images
+let stream = try await classifier.openStreamSession(batchSize: 8)
+try await stream.pushFrame(cameraFrame)
 ```
 
 ```bash

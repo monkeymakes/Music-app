@@ -89,6 +89,50 @@ public final class ModelFeedbackService: Sendable {
     // Analytics mirror is owned by MusicVisionClassifier.submitFeedback so
     // architecture / device_class stay consistent with the active model.
   }
+
+  /// Writes multiple feedback documents in one Firestore batch commit.
+  public func submitBatch(_ feedbackItems: [ModelFeedback]) async throws {
+    guard FirebaseBootstrap.configureIfNeeded() else {
+      throw ModelFeedbackError.firebaseNotConfigured
+    }
+    guard !feedbackItems.isEmpty else { return }
+
+    let db = Firestore.firestore()
+    let batch = db.batch()
+
+    for feedback in feedbackItems {
+      var payload: [String: Any] = [
+        "inference_id": feedback.inferenceId,
+        "model_name": feedback.modelName,
+        "rating": feedback.rating.rawValue,
+        "comment": String(feedback.comment.prefix(1000)),
+        "labels": feedback.labels.map { label -> [String: Any] in
+          [
+            "text": label.text,
+            "confidence": Double(label.confidence),
+            "index": label.index,
+          ]
+        },
+        "platform": "ios",
+        "created_at": FieldValue.serverTimestamp(),
+      ]
+
+      if let topLabel = feedback.topLabel {
+        payload["top_label"] = topLabel
+      }
+      if let topConfidence = feedback.topConfidence {
+        payload["top_confidence"] = Double(topConfidence)
+      }
+      if let latencyMs = feedback.latencyMs {
+        payload["latency_ms"] = latencyMs
+      }
+
+      let ref = db.collection(collectionName).document(feedback.inferenceId)
+      batch.setData(payload, forDocument: ref)
+    }
+
+    try await batch.commit()
+  }
 }
 
 public enum ModelFeedbackError: Error, LocalizedError {

@@ -39,6 +39,37 @@ curl -s -X POST http://127.0.0.1:8080/v1/infer \
   -F top_k=5 | jq
 ```
 
+### Batch inference
+
+Upload multiple images in one request:
+
+```bash
+curl -s -X POST http://127.0.0.1:8080/v1/infer/batch \
+  -F images=@/path/to/a.jpg \
+  -F images=@/path/to/b.jpg \
+  -F model=music_vision_efficientnet \
+  -F top_k=5 | jq
+```
+
+### Stream frame batching
+
+Create a session, push camera frames, and let the server auto-flush when `batch_size` is reached:
+
+```bash
+SESSION=$(curl -s -X POST http://127.0.0.1:8080/v1/stream/sessions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"music_vision_efficientnet","batch_size":4,"max_wait_ms":500}' \
+  | jq -r .session_id)
+
+curl -s -X POST "http://127.0.0.1:8080/v1/stream/sessions/$SESSION/frames" \
+  -F image=@/path/to/frame.jpg | jq
+
+curl -s -X POST "http://127.0.0.1:8080/v1/stream/sessions/$SESSION/flush" | jq
+curl -s -X DELETE "http://127.0.0.1:8080/v1/stream/sessions/$SESSION"
+```
+
+On iOS, use `ServerSideStreamSession` or `MusicVisionClassifier.openStreamSession()` for server-side camera batching, and `classifyBatch(images:)` for still-image batches.
+
 Pin an exact version (ignore channel):
 
 ```bash
@@ -65,5 +96,9 @@ curl -s -X POST http://127.0.0.1:8080/v1/infer \
 | `MUSIC_VISION_DEFAULT_MODEL` | `music_vision_efficientnet` | Default `/v1/infer` model |
 | `ALLOW_MOCK_INFERENCE` | `1` | Allow mock scores when artifact missing |
 | `CORS_ALLOW_ORIGINS` | `*` | CORS origins |
+| `MUSIC_VISION_MAX_BATCH_SIZE` | `32` | Max images per batch request |
+| `MUSIC_VISION_STREAM_BATCH_SIZE` | `8` | Default stream session batch size |
+| `MUSIC_VISION_STREAM_MAX_WAIT_MS` | `500` | Default max wait before auto-flush |
+| `MUSIC_VISION_STREAM_IDLE_TTL_MS` | `60000` | Stream session idle expiry |
 
 Set `ALLOW_MOCK_INFERENCE=0` in production once real artifacts are present.

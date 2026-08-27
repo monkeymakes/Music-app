@@ -300,7 +300,7 @@ public final class MusicVisionClassifier: ObservableObject {
 
       if sampleAnalytics {
         let latencyMs = Date().timeIntervalSince(started) * 1000
-        ModelPerformanceAnalytics.logInference(
+        ModelPerformanceAnalytics.enqueueInference(
           latencyMs: latencyMs,
           labels: labels,
           success: true,
@@ -313,7 +313,7 @@ public final class MusicVisionClassifier: ObservableObject {
     } catch {
       if sampleAnalytics {
         let latencyMs = Date().timeIntervalSince(started) * 1000
-        ModelPerformanceAnalytics.logInference(
+        ModelPerformanceAnalytics.enqueueInference(
           latencyMs: latencyMs,
           labels: [],
           success: false,
@@ -325,6 +325,38 @@ public final class MusicVisionClassifier: ObservableObject {
       }
       throw error
     }
+  }
+
+  /// Classifies multiple still images in one server-side batch request.
+  public func classifyBatch(images: [UIImage]) async throws -> [[MusicVisionLabel]] {
+    guard runtime == .serverSide, let serverClient else {
+      throw ServerSideInferenceError.notPrepared
+    }
+    if !serverClient.isReady {
+      _ = try await serverClient.prepare()
+      lastModelVersion = serverClient.activeVersion?.version
+    }
+
+    let response = try await serverClient.classifyBatch(images: images)
+    lastModelVersion = response.version
+    return response.results.map { item in
+      item.labels.map {
+        MusicVisionLabel(text: $0.text, confidence: $0.confidence, index: $0.index)
+      }
+    }
+  }
+
+  /// Opens a server-side stream session for batched camera frame inference.
+  public func openStreamSession(
+    batchSize: Int = 8,
+    maxWaitMs: Int = 500
+  ) async throws -> ServerSideStreamSession {
+    guard runtime == .serverSide, let serverClient else {
+      throw ServerSideInferenceError.notPrepared
+    }
+    let session = ServerSideStreamSession(client: serverClient)
+    _ = try await session.open(batchSize: batchSize, maxWaitMs: maxWaitMs)
+    return session
   }
 
   /// Builds feedback for the last still-image inference and writes it to Firestore.

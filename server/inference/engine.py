@@ -122,3 +122,88 @@ def infer_image(
             "Place a .tflite file or set ALLOW_MOCK_INFERENCE=1."
         )
     return top_k(scores, labels, top_k_n), latency_ms, mode
+
+
+@dataclass(frozen=True)
+class BatchInferenceItem:
+    index: int
+    labels: list[InferenceLabel]
+    latency_ms: float
+
+
+@dataclass(frozen=True)
+class BatchInferenceResult:
+    results: list[BatchInferenceItem]
+    total_latency_ms: float
+    engine_mode: str
+
+
+def infer_images_batch(
+    *,
+    image_bytes_list: list[bytes],
+    labels: list[str],
+    input_size: tuple[int, int],
+    artifact_path: Path | None,
+    allow_mock: bool,
+    top_k_n: int,
+) -> BatchInferenceResult:
+    """Run inference on multiple images, reusing one TFLite interpreter when possible."""
+    if not image_bytes_list:
+        raise ValueError("image_bytes_list must not be empty")
+
+    started = time.perf_counter()
+    results: list[BatchInferenceItem] = []
+    mode = "mock"
+
+    if artifact_path is not None and artifact_path.is_file():
+        mode = "tflite"
+        try:
+            from tflite_runtime.interpreter import Interpreter
+        except ImportError:
+            from tensorflow.lite.python.interpreter import Interpreter
+
+        interpreter = Interpreter(model_path=str(artifact_path))
+        interpreter.allocate_tensors()
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+
+        for index, image_bytes in enumerate(image_bytes_list):
+            item_started = time.perf_counter()
+            tensor = preprocess_image(image_bytes, input_size)
+            if input_details[0]["dtype"].__name__ == "uint8":
+                raw = ((tensor + 1.0) * 127.5).clip(0, 255).astype(np.uint8)
+                interpreter.set_tensor(input_details[0]["index"], raw)
+            else:
+                interpreter.set_tensor(input_details[0]["index"], tensor)
+            interpreter.invoke()
+            output = interpreter.get_tensor(output_details[0]["index"])[0]
+            item_latency_ms = (time.perf_counter() - item_started) * 1000
+            results.append(
+                BatchInferenceItem(
+                    index=index,
+                    labels=top_k(output, labels, top_k_n),
+                    latency_ms=item_latency_ms,
+                )
+            )
+    elif allow_mock:
+        for index, image_bytes in enumerate(image_bytes_list):
+            scores, item_latency_ms = run_mock(labels, image_bytes)
+            results.append(
+                BatchInferenceItem(
+                    index=index,
+                    labels=top_k(scores, labels, top_k_n),
+                    latency_ms=item_latency_ms,
+                )
+            )
+    else:
+        raise FileNotFoundError(
+            f"Model artifact missing: {artifact_path}. "
+            "Place a .tflite file or set ALLOW_MOCK_INFERENCE=1."
+        )
+
+    total_latency_ms = (time.perf_counter() - started) * 1000
+    return BatchInferenceResult(
+        results=results,
+        total_latency_ms=total_latency_ms,
+        engine_mode=mode,
+    )
