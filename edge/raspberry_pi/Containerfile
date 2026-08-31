@@ -1,0 +1,35 @@
+# Red Hat / Fedora / Pi edge inference — no Node.js, no JavaScript runtime.
+# Build: podman build -f edge/raspberry_pi/Containerfile -t music-vision-pi .
+# Run:   podman compose -f edge/raspberry_pi/compose.yaml up -d
+
+FROM registry.access.redhat.com/ubi9/python-311:latest
+
+LABEL maintainer="Music-app" \
+      description="EfficientNet TFLite inference for Raspberry Pi / RHEL edge (Python only)"
+
+WORKDIR /app
+
+# Install deps first for layer caching
+COPY edge/raspberry_pi/requirements.txt /app/edge/raspberry_pi/requirements.txt
+RUN pip install --no-cache-dir -r edge/raspberry_pi/requirements.txt \
+    && pip install --no-cache-dir tflite-runtime || pip install --no-cache-dir tensorflow
+
+COPY edge/raspberry_pi/ /app/edge/raspberry_pi/
+COPY ml/labels.example.txt /app/ml/labels.example.txt
+
+ENV MODEL_PATH=/app/edge/raspberry_pi/models/music_vision_efficientnet.tflite \
+    LABELS_PATH=/app/ml/labels.example.txt \
+    THREADS=4 \
+    PORT=8088
+
+EXPOSE 8088
+
+# Non-root on UBI
+RUN useradd -r -u 1001 appuser && chown -R appuser:appuser /app
+USER appuser
+
+CMD ["python3", "edge/raspberry_pi/infer_server.py", \
+     "--model", "/app/edge/raspberry_pi/models/music_vision_efficientnet.tflite", \
+     "--labels", "/app/ml/labels.example.txt", \
+     "--host", "0.0.0.0", \
+     "--port", "8088"]

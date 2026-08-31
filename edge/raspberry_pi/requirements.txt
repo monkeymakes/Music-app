@@ -1,7 +1,7 @@
-# EfficientNet TFLite for Raspberry Pi Music Vision.
-# Place music_vision_efficientnet.tflite in this directory.
+# Music Vision edge inference — Python only, no JavaScript.
+# Runs on Raspberry Pi OS, RHEL, Fedora, or inside Podman on those hosts.
 numpy>=1.26
 Pillow>=10
 tflite-runtime>=2.14.0; platform_machine == "aarch64" or platform_machine == "armv7l"
-# On x86_64 laptops for dry-runs, install tensorflow instead of tflite-runtime:
-# tensorflow>=2.14.0
+# Dev / Mac lab dry-runs (export happens separately with TensorFlow):
+tensorflow>=2.14.0; platform_machine == "x86_64" or platform_machine == "arm64"

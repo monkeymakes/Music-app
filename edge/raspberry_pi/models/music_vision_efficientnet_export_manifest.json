@@ -1,0 +1,11 @@
+{
+  "model": "music_vision_efficientnet.tflite",
+  "architecture": "efficientnet",
+  "device_class": "raspberry_pi",
+  "quantization": "dynamic",
+  "input_size": 224,
+  "preprocess": "RGB 224x224, (pixel/127.5)-1 \u2192 [-1,1]; uint8 models use 0-255",
+  "label_count": 10,
+  "size_bytes": 27424,
+  "size_mb": 0.03
+}

@@ -1,0 +1,4 @@
+# Export EfficientNet → compressed TFLite for Raspberry Pi (run on Mac / CI, not on Pi).
+tensorflow>=2.14.0,<2.17
+Pillow>=10.0.0
+numpy>=1.26.0
