@@ -1,0 +1,22 @@
+rules_version = '2';
+// Starter rules for Music Vision model feedback.
+// In Firebase console: Firestore → Rules.
+// Tighten before production (require Auth, rate-limit, validate fields).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /model_feedback/{feedbackId} {
+      // Allow clients to create feedback documents for model quality review.
+      allow create: if request.resource.data.keys().hasAll([
+          'inference_id', 'model_name', 'rating', 'platform', 'created_at'
+        ])
+        && request.resource.data.rating in ['helpful', 'not_helpful']
+        && request.resource.data.model_name == 'music_vision'
+        && request.resource.data.platform == 'ios'
+        && request.resource.data.comment is string
+        && request.resource.data.comment.size() <= 1000;
+
+      // Reads stay server-side / admin-only until you add authenticated reviewers.
+      allow read, update, delete: if false;
+    }
+  }
+}

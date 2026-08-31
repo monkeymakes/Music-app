@@ -1,0 +1,11 @@
+# Optional Clink runtime for Music Vision stream experiments.
+# Requires Docker or Podman Compose.
+#
+#   cd edge/clink && docker compose run --rm clink run /work/edge/clink/pipelines/music_vision_batch.sql
+#
+services:
+  clink:
+    image: ghcr.io/orhaugh/clink-runtime:latest
+    working_dir: /work
+    volumes:
+      - ../..:/work:ro

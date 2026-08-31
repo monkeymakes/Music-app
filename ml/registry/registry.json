@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-08-15T00:00:00Z",
+  "models": {
+    "music_vision_tinyml": {
+      "display_name": "Music Vision TinyML",
+      "architecture": "tinyml",
+      "device_class": "ios_phone",
+      "format": "tflite",
+      "input_size": [160, 160],
+      "channels": {
+        "production": "1.0.0",
+        "staging": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "version": "1.0.0",
+          "status": "production",
+          "artifact_path": "ios/MusicApp/Models/music_vision_tinyml.tflite",
+          "labels_path": "ios/MusicApp/Models/music_vision_tinyml_labels.txt",
+          "sha256": null,
+          "created_at": "2026-08-15T00:00:00Z",
+          "notes": "Initial TinyML production pin for iOS + server-side fallback."
+        }
+      }
+    },
+    "music_vision_mobilenet": {
+      "display_name": "Music Vision MobileNet",
+      "architecture": "mobilenet",
+      "device_class": "ios_phone",
+      "format": "tflite",
+      "input_size": [224, 224],
+      "channels": {
+        "production": "1.0.0",
+        "staging": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "version": "1.0.0",
+          "status": "production",
+          "artifact_path": "ios/MusicApp/Models/music_vision_mobilenet.tflite",
+          "labels_path": "ios/MusicApp/Models/music_vision_mobilenet_labels.txt",
+          "sha256": null,
+          "created_at": "2026-08-15T00:00:00Z",
+          "notes": "Full MobileNet optional path."
+        }
+      }
+    },
+    "music_vision_efficientnet": {
+      "display_name": "Music Vision EfficientNet",
+      "architecture": "efficientnet",
+      "device_class": "raspberry_pi",
+      "format": "tflite",
+      "input_size": [224, 224],
+      "channels": {
+        "production": "1.0.0",
+        "staging": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "version": "1.0.0",
+          "status": "production",
+          "artifact_path": "edge/raspberry_pi/models/music_vision_efficientnet.tflite",
+          "labels_path": "edge/raspberry_pi/models/music_vision_efficientnet_labels.txt",
+          "sha256": null,
+          "created_at": "2026-08-15T00:00:00Z",
+          "notes": "Pi / server-side high-accuracy default."
+        }
+      }
+    }
+  }
+}
