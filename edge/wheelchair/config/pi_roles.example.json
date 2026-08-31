@@ -1,0 +1,29 @@
+{
+  "hub_url": "http://192.168.1.100:8080",
+  "pis": [
+    {
+      "device_id": "pi-sensors-01",
+      "pi_role": "sensors",
+      "description": "Ultrasonic/IR distance sensors and IMU",
+      "batch_size": 16,
+      "max_wait_ms": 500,
+      "stream_interval_ms": 200
+    },
+    {
+      "device_id": "pi-voice-01",
+      "pi_role": "voice",
+      "description": "Wyoming/Aloha wake-word, microphone and speaker audio analysis",
+      "batch_size": 8,
+      "max_wait_ms": 500,
+      "stream_interval_ms": 250
+    },
+    {
+      "device_id": "pi-vision-01",
+      "pi_role": "vision",
+      "description": "Stereo camera for 3D depth and object recognition",
+      "batch_size": 4,
+      "max_wait_ms": 500,
+      "stream_interval_ms": 333
+    }
+  ]
+}
