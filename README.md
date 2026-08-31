@@ -11,6 +11,30 @@ Share music with others.
 | **iOS / LAN** | Registry-pinned model | **Server-side** `/v1/infer` |
 | **Raspberry Pi** | **EfficientNet** | TFLite |
 
+## Multi-Pi Streaming Observability (Wheelchair MVP)
+
+Three wheelchair Pis stream telemetry to a central hub. Events are micro-batched and accumulated in **TensorBoard**. Cross-Pi **function calling** routes commands between sensor, voice, and vision nodes.
+
+| Pi | Role | Streams |
+| --- | --- | --- |
+| **pi-sensors-01** | Distance + IMU | `distance_*_m`, `imu` |
+| **pi-voice-01** | Wyoming/Aloha + mic | `wake_word_*`, `audio_level` |
+| **pi-vision-01** | Stereo camera + 3D | `stereo_frame`, `depth`, `recognition` |
+
+```bash
+# Hub
+pip install -r server/inference/requirements.txt
+PYTHONPATH=. uvicorn server.inference.app:app --host 0.0.0.0 --port 8080
+
+# Simulate all 3 Pis
+python3 edge/wheelchair/run_all_pis_demo.py --duration 10
+
+# TensorBoard
+tensorboard --logdir runs/wheelchair_observability
+```
+
+See [`edge/wheelchair/README.md`](edge/wheelchair/README.md) for full setup.
+
 ```swift
 MusicVisionClassifier(runtime: .coreML).prepare() // TinyML on-device
 MusicVisionClassifier(runtime: .serverSide).prepare() // versioned remote infer

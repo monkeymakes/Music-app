@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 from server.inference.engine import infer_image, infer_images_batch, load_labels
 from server.inference.registry_loader import ModelRegistry, ResolvedModel
 from server.inference.stream import StreamSessionManager
+from server.observability.routes import router as observability_router
 
 ROOT = Path(__file__).resolve().parents[2]
 ALLOW_MOCK = os.environ.get("ALLOW_MOCK_INFERENCE", "1") == "1"
@@ -58,6 +59,7 @@ app.add_middleware(
 
 registry = ModelRegistry(path=REGISTRY_PATH, root=ROOT)
 stream_sessions = StreamSessionManager()
+app.include_router(observability_router)
 
 
 class HealthResponse(BaseModel):
