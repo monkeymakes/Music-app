@@ -1,0 +1,37 @@
+{
+  "device_class": "cloud_server",
+  "architecture": "efficientnet_or_keras_classifier",
+  "runtime": "tensorflow_serving",
+  "model_name": "music_vision",
+  "version": 1,
+  "input_size": [
+    224,
+    224,
+    3
+  ],
+  "preprocess": "x/127.5 - 1.0  # float32 RGB -> [-1, 1]",
+  "signature": "serving_default",
+  "label_count": 10,
+  "labels": [
+    "instrument",
+    "vinyl",
+    "guitar",
+    "piano",
+    "drums",
+    "microphone",
+    "headphones",
+    "album_cover",
+    "concert",
+    "studio"
+  ],
+  "labels_file": "serving/models/music_vision/labels.txt",
+  "source": "stub_cnn_random_weights",
+  "rest": "POST http://127.0.0.1:8501/v1/models/music_vision:predict",
+  "grpc": "127.0.0.1:8500",
+  "compose": "podman compose -f serving/docker-compose.yml up -d  # preferred; or docker compose / ./serving/up.sh",
+  "next_steps": [
+    "Keep label order identical to iOS TinyML/MobileNet and Pi EfficientNet",
+    "Roll forward by exporting --version N+1; models.config keeps latest 2",
+    "Smoke test: python3 serving/client/predict_image.py --image path/to.jpg"
+  ]
+}

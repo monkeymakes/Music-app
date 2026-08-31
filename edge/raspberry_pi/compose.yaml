@@ -1,0 +1,29 @@
+# Podman Compose for Music Vision edge inference on Red Hat / Linux.
+# No JavaScript — pure Python TFLite server.
+#
+# Prerequisites:
+#   1. Export a compressed model on your Mac:
+#        python3 ml/export_efficientnet_tflite.py --export-stub --quantize dynamic
+#   2. podman compose -f edge/raspberry_pi/compose.yaml up -d --build
+#
+# SELinux (RHEL/Fedora): :Z relabels the model volume for container access.
+
+services:
+  music-vision-pi:
+    build:
+      context: ../..
+      dockerfile: edge/raspberry_pi/Containerfile
+    image: music-vision-pi:latest
+    container_name: music-vision-pi
+    ports:
+      - "${PORT:-8088}:8088"
+    volumes:
+      - ../../edge/raspberry_pi/models:/app/edge/raspberry_pi/models:ro,Z
+    environment:
+      THREADS: "${THREADS:-4}"
+    restart: unless-stopped
+    # Pi / small ARM hosts: cap memory to avoid OOM during model load
+    deploy:
+      resources:
+        limits:
+          memory: 512M

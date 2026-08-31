@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+*.tflite
+*.mlmodel
+*.mlpackage
+*.mlmodelc
+GoogleService-Info.plist
+.netlify/
+.DS_Store
+ml/create_ml/TrainingData/**
+ml/create_ml/TestingData/**
+!ml/create_ml/TrainingData/.gitkeep
+!ml/create_ml/TestingData/.gitkeep
+!ml/create_ml/**/.gitkeep

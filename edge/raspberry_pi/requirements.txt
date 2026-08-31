@@ -1,0 +1,7 @@
+# Music Vision edge inference — Python only, no JavaScript.
+# Runs on Raspberry Pi OS, RHEL, Fedora, or inside Podman on those hosts.
+numpy>=1.26
+Pillow>=10
+tflite-runtime>=2.14.0; platform_machine == "aarch64" or platform_machine == "armv7l"
+# Dev / Mac lab dry-runs (export happens separately with TensorFlow):
+tensorflow>=2.14.0; platform_machine == "x86_64" or platform_machine == "arm64"

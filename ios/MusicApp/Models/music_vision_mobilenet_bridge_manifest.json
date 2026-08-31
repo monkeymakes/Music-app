@@ -1,0 +1,26 @@
+{
+  "device_class": "ios_phone",
+  "architecture": "mobilenet",
+  "model_resource": "music_vision_mobilenet.tflite",
+  "labels_file": "music_vision_mobilenet_labels.txt",
+  "label_count": 10,
+  "labels": [
+    "instrument",
+    "vinyl",
+    "guitar",
+    "piano",
+    "drums",
+    "microphone",
+    "headphones",
+    "album_cover",
+    "concert",
+    "studio"
+  ],
+  "runtime": "Google ML Kit ImageLabelingCustom on iOS",
+  "accessibility": "VoiceOver announcements via MusicVisionAccessibility",
+  "next_steps": [
+    "Export a metadata-enabled mobilenet .tflite to ios/MusicApp/Models/music_vision_mobilenet.tflite",
+    "Keep class order identical across MobileNet and EfficientNet exports",
+    "Add the .tflite to the MusicApp Xcode target (Copy Bundle Resources)"
+  ]
+}
