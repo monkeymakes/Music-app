@@ -1,0 +1,11 @@
+{"ts_ms":1000,"session_id":"sess-ios-001","frame_id":"f-001","model":"music_vision_efficientnet","channel":"production","device_class":"ios","latency_ms":42.1}
+{"ts_ms":1080,"session_id":"sess-ios-001","frame_id":"f-002","model":"music_vision_efficientnet","channel":"production","device_class":"ios","latency_ms":39.8}
+{"ts_ms":1160,"session_id":"sess-ios-001","frame_id":"f-003","model":"music_vision_efficientnet","channel":"production","device_class":"ios","latency_ms":41.2}
+{"ts_ms":1240,"session_id":"sess-ios-001","frame_id":"f-004","model":"music_vision_efficientnet","channel":"production","device_class":"ios","latency_ms":40.5}
+{"ts_ms":1320,"session_id":"sess-ios-001","frame_id":"f-005","model":"music_vision_efficientnet","channel":"production","device_class":"ios","latency_ms":43.0}
+{"ts_ms":2000,"session_id":"sess-pi-002","frame_id":"f-101","model":"music_vision_efficientnet","channel":"staging","device_class":"raspberry_pi","latency_ms":88.4}
+{"ts_ms":2150,"session_id":"sess-pi-002","frame_id":"f-102","model":"music_vision_efficientnet","channel":"staging","device_class":"raspberry_pi","latency_ms":91.2}
+{"ts_ms":2300,"session_id":"sess-pi-002","frame_id":"f-103","model":"music_vision_efficientnet","channel":"staging","device_class":"raspberry_pi","latency_ms":87.9}
+{"ts_ms":3000,"session_id":"sess-ios-003","frame_id":"f-201","model":"music_vision_tinyml","channel":"production","device_class":"ios","latency_ms":12.3}
+{"ts_ms":3050,"session_id":"sess-ios-003","frame_id":"f-202","model":"music_vision_tinyml","channel":"production","device_class":"ios","latency_ms":11.8}
+{"ts_ms":3100,"session_id":"sess-ios-003","frame_id":"f-203","model":"music_vision_tinyml","channel":"production","device_class":"ios","latency_ms":12.1}
