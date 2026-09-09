@@ -24,4 +24,4 @@ npm run dev
 npm run build
 ```
 
-`netlify.toml` publishes `dist` with SPA fallback. The `@netlify/vite-plugin` is enabled for local Netlify primitives.
+`netlify.toml` publishes `dist` with SPA fallback. Local Vite uses the React plugin only (the Netlify Vite plugin’s edge emulator can fail in some sandboxes); production still deploys via Netlify from `netlify.toml`.
