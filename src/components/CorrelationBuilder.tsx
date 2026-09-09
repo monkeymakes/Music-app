@@ -38,14 +38,26 @@ export function CorrelationBuilder({
 
   const optionsFor = (index: number) => {
     const taken = new Set(slots.filter((s, i) => s && i !== index))
-    return available.filter((d) => !taken.has(d))
+    const opts = available.filter((d) => !taken.has(d))
+    const current = slots[index]
+    if (current && !opts.includes(current)) opts.unshift(current)
+    return opts
   }
 
   const canRun = slots.filter(Boolean).length >= 2 && !busy
 
   return (
-    <aside className="panel">
+    <aside className="panel controls">
       <h2>Correlation</h2>
+
+      <div className="cta-row" style={{ marginTop: 0, marginBottom: '0.85rem' }}>
+        <button type="button" className="btn btn-primary" disabled={!canRun} onClick={onRun}>
+          {busy ? 'Running…' : 'Run correlation'}
+        </button>
+        <button type="button" className="btn btn-secondary" onClick={onLoadSample} disabled={busy}>
+          Load sample
+        </button>
+      </div>
 
       <div className="field">
         <label htmlFor="workbook">Workbook (multi-tab .xlsx)</label>
@@ -84,9 +96,6 @@ export function CorrelationBuilder({
                 {d}
               </option>
             ))}
-            {slots[i] && !optionsFor(i).includes(slots[i] as DatasourceId) && (
-              <option value={slots[i]}>{slots[i]}</option>
-            )}
           </select>
         </div>
       ))}
@@ -114,9 +123,6 @@ export function CorrelationBuilder({
       <div className="cta-row">
         <button type="button" className="btn btn-primary" disabled={!canRun} onClick={onRun}>
           {busy ? 'Running…' : 'Run correlation'}
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={onLoadSample} disabled={busy}>
-          Load sample workbook
         </button>
       </div>
 

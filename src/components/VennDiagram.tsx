@@ -48,10 +48,10 @@ export function VennDiagram({ sources, regions }: Props) {
             <feGaussianBlur stdDeviation="0.5" />
           </filter>
         </defs>
-        <circle cx={c ? 155 : 160} cy={130} r={88} fill="rgba(11,61,74,0.18)" stroke="#0B3D4A" strokeWidth="2" />
-        <circle cx={c ? 265 : 260} cy={130} r={88} fill="rgba(42,143,134,0.18)" stroke="#2A8F86" strokeWidth="2" />
+        <circle cx={c ? 155 : 160} cy={130} r={88} fill="rgba(11,61,74,0.28)" stroke="#0B3D4A" strokeWidth="2.5" />
+        <circle cx={c ? 265 : 260} cy={130} r={88} fill="rgba(42,143,134,0.28)" stroke="#2A8F86" strokeWidth="2.5" />
         {c && (
-          <circle cx={210} cy={195} r={88} fill="rgba(201,133,42,0.16)" stroke="#C9852A" strokeWidth="2" />
+          <circle cx={210} cy={195} r={88} fill="rgba(201,133,42,0.26)" stroke="#C9852A" strokeWidth="2.5" />
         )}
         <text x={c ? 100 : 110} y={90} fontSize="12" fill="#0B3D4A" fontWeight="700">
           {a}

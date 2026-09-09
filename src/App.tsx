@@ -126,6 +126,11 @@ export default function App() {
                 power state, subnet→business domain — plus user and location tensors with word2vec
                 embeddings (machine location, podman, hardware, cloud, type).
               </p>
+              <div className="cta-row">
+                <button type="button" className="btn btn-primary" onClick={onLoadSample} disabled={busy}>
+                  {busy ? 'Loading…' : 'Load sample workbook'}
+                </button>
+              </div>
             </section>
           )}
         </main>
